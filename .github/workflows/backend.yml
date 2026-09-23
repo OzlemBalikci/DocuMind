@@ -4,22 +4,26 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - "backend/**"
+      - "src/**"
+      - "pom.xml"
+      - "mvnw"
+      - "mvnw.cmd"
+      - ".mvn/**"
       - ".github/workflows/backend.yml"
   push:
     branches: [main]
     paths:
-      - "backend/**"
+      - "src/**"
+      - "pom.xml"
+      - "mvnw"
+      - "mvnw.cmd"
+      - ".mvn/**"
       - ".github/workflows/backend.yml"
   workflow_dispatch:
 
 concurrency:
   group: backend-${{ github.ref }}
   cancel-in-progress: true
-
-defaults:
-  run:
-    working-directory: backend
 
 env:
   LLM_PROVIDER: mock
@@ -49,6 +53,6 @@ jobs:
         with:
           name: backend-test-reports
           path: |
-            backend/target/surefire-reports/
-            backend/target/site/jacoco/
+            target/surefire-reports/
+            target/site/jacoco/
           if-no-files-found: ignore
