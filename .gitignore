@@ -7,6 +7,7 @@
 
 # --- Java / Spring Boot / Maven ---
 backend/target/
+target/
 backend/.classpath
 backend/.project
 backend/.settings/
