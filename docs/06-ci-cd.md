@@ -1,35 +1,32 @@
-# 6. CI/CD
+# 6. CI
 
-Araç: **GitHub Actions** (public repoda ücretsiz ve sınırsız dakika). Kodun GitHub'da olduğunu varsayıyoruz; Render ve Vercel GitHub ile doğrudan entegre olur.
+Araç: **GitHub Actions** (public repoda ücretsiz ve sınırsız dakika).
+
+Bu projenin canlı ortamı yok ([Proje Fikri → Kapsam Dışı](01-proje-fikri.md#kapsam-dışı-bilerek-yapmıyoruz)), dolayısıyla **CD yok, sadece CI var**. Bu, CI'yi önemsizleştirmez — tam tersine: canlı link olmadığı için projenin gerçekten çalıştığının tek dış kanıtı yeşil pipeline ve içindeki entegrasyon testleridir. İşe alımcı Actions sekmesine bakıp "her commit'te gerçek PostgreSQL ve RabbitMQ ile uçtan uca test koşuyor" görebilmeli.
 
 ## Hedef
 
 - Her PR'da backend ve frontend testleri otomatik koşsun, kırmızıysa merge edilemesin.
-- `main`'e merge olunca **sadece testler geçerse** canlıya deploy olsun.
-- Deploy sonrası canlı sistem otomatik kontrol edilsin (smoke test).
+- Testler **Ollama olmadan** koşsun: CI'da `LLM_PROVIDER=mock`.
+- Testcontainers ile gerçek PostgreSQL ve RabbitMQ ayağa kalksın.
 
 ## Pipeline Akışı
 
 ```mermaid
 flowchart TD
     A[feature branch'e push] --> B[Pull Request açılır]
-    B --> C{Hangi klasör değişti?}
-    C -->|backend/**| D[Backend CI<br/>build + test + coverage]
+    B --> C{Hangi dosyalar değişti?}
+    C -->|src/**, pom.xml| D[Backend CI<br/>build + test + coverage]
     C -->|frontend/**| E[Frontend CI<br/>lint + typecheck + test + build]
     D --> F{Hepsi yeşil mi?}
     E --> F
     F -->|Hayır| G[Merge engellenir]
     F -->|Evet| H[main'e merge]
-    H --> I[Backend: Docker image build<br/>+ GHCR'a push]
-    I --> J[Render Deploy Hook]
-    J --> K[Smoke test<br/>/actuator/health]
-    H --> L[Frontend: Vercel production deploy]
-    L --> M[Smoke test<br/>ana sayfa 200]
 ```
 
 ## Branch Stratejisi (GitHub Flow)
 
-- `main` her zaman deploy edilebilir durumda; doğrudan push yok.
+- `main` her zaman çalışır durumda; doğrudan push yok.
 - Her iş için kısa ömürlü branch: `feat/interview-create`, `fix/jwt-expiry`, `chore/ci`.
 - Commit mesajları [Conventional Commits](https://www.conventionalcommits.org/) formatında: `feat: add answer evaluation endpoint`, `fix: clamp llm score`, `test: add quota service tests`, `ci: add backend workflow`.
 - GitHub → Settings → Branches → `main` için **branch protection / ruleset**:
@@ -41,9 +38,11 @@ Tek başına çalışıyorsan bile PR aç: repo geçmişinde düzgün PR'lar gö
 
 ## Workflow 1: Backend (`.github/workflows/backend.yml`)
 
-**Tetikleyiciler:** `pull_request` ve `push` (`main`), sadece `backend/**` veya bu workflow dosyası değişince (`paths` filtresi). Elle çalıştırmak için `workflow_dispatch` de ekle.
+**Tetikleyiciler:** `pull_request` ve `push` (`main`), sadece `src/**`, `pom.xml`, `mvnw*`, `.mvn/**` veya bu workflow dosyası değişince (`paths` filtresi). Elle çalıştırmak için `workflow_dispatch` de ekle.
 
-**Genel ayarlar:** `defaults.run.working-directory: backend`, aynı branch'te yeni push gelince eski çalışmayı iptal etmek için `concurrency` grubu (`cancel-in-progress: true`).
+> `paths` filtresi yüzünden `docs/` veya `.gitignore` değiştiğinde CI **koşmaz**. Bu bilerek böyle; Actions sekmesinde run görmüyorsan önce hangi dosyaların değiştiğine bak.
+
+**Genel ayarlar:** Aynı branch'te yeni push gelince eski çalışmayı iptal etmek için `concurrency` grubu (`cancel-in-progress: true`).
 
 ### Job `backend-test` (her PR ve push)
 
@@ -52,33 +51,23 @@ Tek başına çalışıyorsan bile PR aç: repo geçmişinde düzgün PR'lar gö
 | 1 | Kodu çek | `actions/checkout` | |
 | 2 | Java 21 kur | `actions/setup-java` → `distribution: temurin`, `java-version: 21`, `cache: maven` | Maven cache build'i dakikalarca hızlandırır |
 | 3 | Test + paketle | `./mvnw -B verify` | `-B` batch mod, log kirliliğini azaltır |
-| 4 | Ortam değişkenleri | `LLM_PROVIDER=mock`, `JWT_SECRET=` test için rastgele 32+ karakter | **CI'da gerçek Groq anahtarı yok**, kota harcanmaz |
+| 4 | Ortam değişkenleri | `LLM_PROVIDER=mock`, `JWT_SECRET=` test için rastgele 32+ karakter | **CI'da Ollama yok**; mock olmadan testler koşmaz |
 | 5 | Test raporu | `actions/upload-artifact` ile `target/surefire-reports` ve `target/site/jacoco` | Başarısız testte raporu indirip bakabilirsin |
 
-- **Testcontainers** GitHub'ın `ubuntu-latest` runner'ında ek ayar olmadan çalışır (Docker kurulu gelir). Ayrı bir `services: postgres` tanımlamana gerek yok.
+- **Testcontainers** GitHub'ın `ubuntu-latest` runner'ında ek ayar olmadan çalışır (Docker kurulu gelir). PostgreSQL ve RabbitMQ konteynerlerini testler kendisi ayağa kaldırır; `services:` bloğu tanımlamana gerek yok.
+- RabbitMQ konteyneri PostgreSQL'e göre biraz yavaş açılır (~10 sn). Entegrasyon testlerinde Awaitility ile bekle, sabit `sleep` koyma.
 - Coverage için `jacoco-maven-plugin` ekle; `verify` fazında rapor üretsin. İstersen minimum %60 satır kapsamı kuralı koy (`check` goal).
 
-### Job `backend-docker` (sadece `main`'e push, `needs: backend-test`)
+### Neden Docker imajı build edilmiyor?
 
-| # | Adım | Nasıl |
-|---|---|---|
-| 1 | Checkout | `actions/checkout` |
-| 2 | GHCR'a giriş | `docker/login-action` → registry `ghcr.io`, kullanıcı `github.actor`, şifre `GITHUB_TOKEN` |
-| 3 | Build + push | `docker/build-push-action` → context `./backend`, tag'ler `ghcr.io/<kullanıcı>/interviewpilot-backend:latest` ve `:<commit-sha>` |
-| 4 | Cache | `cache-from/cache-to: type=gha` (katman cache'i) |
+Deploy edilecek bir yer olmadığı için `backend-docker` ve `backend-deploy` job'ları kaldırıldı. Yine de bir `Dockerfile` bulundurmak isteyebilirsin ([aşağıda](#dockerfile-opsiyonel)); o durumda CI'ya sadece "imaj build oluyor mu?" kontrolü ekleyebilirsin — push etmeden:
 
-- Job'a `permissions: packages: write, contents: read` ver.
-- Bu adım deploy için şart değil (Render kendisi de build edebilir), ama "her commit'in versiyonlanmış bir imajı var, geri dönmek istersem SHA ile dönerim" demeni sağlar. Portfolyoda güçlü bir detay.
+```yaml
+- name: Docker build (smoke)
+  run: docker build -t interviewpilot-backend:ci .
+```
 
-### Job `backend-deploy` (sadece `main`, `needs: backend-docker`)
-
-| # | Adım | Nasıl |
-|---|---|---|
-| 1 | Render'ı tetikle | `curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL"` (secret'tan) |
-| 2 | Deploy'un bitmesini bekle + smoke test | `https://<servis>.onrender.com/actuator/health` adresine 20 sn arayla 15 kez istek at; `"status":"UP"` görünce başarılı, görmezse job kırmızı |
-
-- `environment: production` tanımla → GitHub'da deploy geçmişi "Environments" sekmesinde görünür. İstersen manuel onay (required reviewers) ekleyebilirsin.
-- Render'ın ücretsiz planında build ~3–5 dk, soğuk açılış ~1 dk sürer; smoke test bekleme süresini buna göre ayarla.
+Bu, ileride deploy etmeye karar verirsen imajın bozulmadığını garanti eder. Maliyeti ~1 dakika.
 
 ## Workflow 2: Frontend (`.github/workflows/frontend.yml`)
 
@@ -94,43 +83,19 @@ Tek başına çalışıyorsan bile PR aç: repo geçmişinde düzgün PR'lar gö
 | 4 | Lint | `npm run lint` |
 | 5 | Tip kontrolü | `npx tsc -b` (veya `npm run typecheck`) |
 | 6 | Test | `npx vitest run` |
-| 7 | Build | `npm run build` (`VITE_API_URL` build'de gerekli, CI için sahte bir değer ver) |
-
-### Job `frontend-deploy` (sadece `main`, `needs: frontend-test`)
-
-İki seçenek var:
-
-| Seçenek | Nasıl | Artı | Eksi |
-|---|---|---|---|
-| **A. Vercel CLI (önerilen)** | Vercel'in otomatik Git deploy'unu kapat. Actions'ta: `npm i -g vercel` → `vercel pull --yes --environment=production` → `vercel build --prod` → `vercel deploy --prebuilt --prod` | Deploy gerçekten testlere bağlı; pipeline tek yerden yönetiliyor | 3 secret gerekir |
-| B. Vercel Git entegrasyonu | Vercel projeyi repoya bağlar, her push'ta kendisi deploy eder, PR'lara preview URL yorumlar | Sıfır ayar | Testler kırmızı olsa da deploy olur |
-
-Seçenek A için:
-- Vercel otomatik deploy'unu kapatmak: `frontend/vercel.json` içinde `git.deploymentEnabled: false`.
-- Vercel ID'leri: lokalde `frontend/` klasöründe `vercel link` çalıştır → `.vercel/project.json` içinde `orgId` ve `projectId` çıkar (bu klasörü commit'leme).
-- Smoke test: deploy sonrası production URL'ye `curl -fsS` → 200 dönmeli.
+| 7 | Build | `npm run build` (`VITE_API_URL` build'de gerekli, CI için `http://localhost:8087` yeterli) |
 
 ## Secret'lar
 
-GitHub → repo → Settings → Secrets and variables → Actions:
+Bu projede GitHub secret'ına **gerek yok**. Deploy hook, Vercel token, veritabanı şifresi, LLM API anahtarı — hiçbiri CI'da kullanılmıyor. `JWT_SECRET` workflow içinde düz `env:` olarak verilir çünkü sadece test amaçlıdır.
 
-| Secret | Nereden | Kullanan |
-|---|---|---|
-| `RENDER_DEPLOY_HOOK_URL` | Render → servis → Settings → Deploy Hook | `backend-deploy` |
-| `VERCEL_TOKEN` | Vercel → Account Settings → Tokens | `frontend-deploy` |
-| `VERCEL_ORG_ID` | `.vercel/project.json` | `frontend-deploy` |
-| `VERCEL_PROJECT_ID` | `.vercel/project.json` | `frontend-deploy` |
+Anahtar gerektirmeyen bir yığın seçmenin yan faydası bu: sızdırılacak bir sır yok.
 
-Variables (gizli olmayan):
+`GITHUB_TOKEN` otomatik gelir, eklemene gerek yok.
 
-| Variable | Örnek |
-|---|---|
-| `BACKEND_URL` | `https://interviewpilot-api.onrender.com` |
-| `FRONTEND_URL` | `https://interviewpilot.vercel.app` |
+## Dockerfile (opsiyonel)
 
-`GITHUB_TOKEN` otomatik gelir, eklemene gerek yok. `GROQ_API_KEY`, `DB_*`, `JWT_SECRET` GitHub'a **değil**, sadece Render'a eklenir (CI bunlara ihtiyaç duymaz).
-
-## Dockerfile (backend) — tasarım
+Deploy etmesen de bir `Dockerfile` bulundurmak, "bu proje konteynerleştirilebilir" sinyali verir ve ileride Groq'a geçip deploy etmek istersen hazır olur.
 
 Multi-stage build kullan:
 
@@ -139,29 +104,32 @@ Multi-stage build kullan:
 | 1. build | `eclipse-temurin:21-jdk` | `pom.xml` + `.mvn` kopyala → `./mvnw dependency:go-offline` (bağımlılık katmanı cache'lensin) → `src` kopyala → `./mvnw -DskipTests package` |
 | 2. run | `eclipse-temurin:21-jre` | Sadece jar'ı kopyala, root olmayan kullanıcıyla çalıştır, `EXPOSE 8087` |
 
-Önemli ayarlar:
-- Render ücretsiz plan **512 MB RAM** verir. JVM'i buna göre sınırla: `JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75 -XX:+UseSerialGC -Xss512k"`. Aksi halde bellek aşımıyla (OOM) servis yeniden başlar.
-- Uygulama `PORT` ortam değişkenini dinlemeli (`server.port: ${PORT:8087}`); Render bu değişkeni kendisi verir.
+Notlar:
+- Uygulama `PORT` ortam değişkenini dinlemeli (`server.port: ${PORT:8087}`).
 - Testler CI'da koştuğu için Docker build içinde `-DskipTests` kullan.
-- `.dockerignore`: `target/`, `.idea/`, `*.iml`, `.env`.
+- `.dockerignore`: `target/`, `.idea/`, `*.iml`, `.env`, `docs/`.
+- Konteynerden Ollama'ya erişmek için `OLLAMA_BASE_URL=http://host.docker.internal:11434` vermen gerekir; `localhost` konteynerin kendisini işaret eder.
 
 ## Ekstralar (zaman kalırsa)
 
 | Ekstra | Ne işe yarar | Maliyet |
 |---|---|---|
-| README badge'leri | Actions durum rozeti (`backend`, `frontend`) | 2 dk |
+| README badge'leri | Actions durum rozeti (`backend`, `frontend`) — canlı link olmadığı için en görünür "çalışıyor" işareti | 2 dk |
 | Dependabot (`.github/dependabot.yml`) | Maven, npm ve GitHub Actions bağımlılıkları için haftalık güncelleme PR'ları | 5 dk |
 | CodeQL | GitHub'ın ücretsiz güvenlik taraması (Java + TypeScript) | 5 dk |
 | PR şablonu | `.github/pull_request_template.md`: ne değişti, nasıl test edildi | 5 dk |
-| Release | `main`'e tag atınca (`v1.0.0`) GitHub Release notları | 10 dk |
+| Release | Proje bitince `v1.0.0` tag'i + GitHub Release notları | 10 dk |
 
 ## Sık Karşılaşılan CI Hataları
 
 | Hata | Sebep | Çözüm |
 |---|---|---|
-| `./mvnw: Permission denied` | Wrapper çalıştırma izni git'e kaydedilmemiş | `git update-index --chmod=+x backend/mvnw` |
+| Actions'ta hiç run görünmüyor | `paths` filtresi dışındaki dosyaları değiştirdin (`docs/`, `.gitignore`) | Normal davranış; elle tetiklemek için Actions → Run workflow |
+| `./mvnw: Permission denied` | Wrapper çalıştırma izni git'e kaydedilmemiş | `git update-index --chmod=+x mvnw` |
+| `release version 21 not supported` | Runner'da (ya da lokalde) Java 21 yok | CI'da `setup-java` adımını kontrol et; lokalde JDK 21 kur |
 | Testcontainers "Could not find a valid Docker environment" | Self-hosted veya Docker'sız runner | `ubuntu-latest` kullan |
-| `JWT_SECRET` yok hatası (context yüklenemedi) | Test profili değişkeni bulamıyor | Workflow'da `env:` ile ver veya `application-test.yml`'e test değeri koy |
+| RabbitMQ testleri zaman aşımına uğruyor | Konteyner henüz hazır değil | `@ServiceConnection` kullan ve Awaitility ile bekle; sabit `Thread.sleep` koyma |
+| `JWT_SECRET` yok hatası (context yüklenemedi) | Test profili değişkeni bulamıyor | Workflow'da `env:` ile ver veya `src/test/resources/application.properties`'e test değeri koy |
+| Testler CI'da dakikalarca sürüyor | `LLM_PROVIDER` mock değil | Workflow'daki `env:` bloğunu kontrol et |
 | `npm ci` lock hatası | `package-lock.json` güncel değil / commit'lenmemiş | Lokalde `npm install` → lock dosyasını commit'le |
-| Frontend build'de `VITE_API_URL` undefined | Vite env değişkenleri build anında gömülür | CI'da ve Vercel'de değişkeni tanımla |
-| Deploy hook 200 döndü ama site eski | Render hâlâ build ediyor | Smoke test'te bekleme/deneme sayısını artır |
+| Frontend build'de `VITE_API_URL` undefined | Vite env değişkenleri build anında gömülür | CI'da değişkeni tanımla |
