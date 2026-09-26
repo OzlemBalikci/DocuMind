@@ -1,21 +1,25 @@
 # 3. Veritabanı
 
-PostgreSQL 16+ (lokalde Docker). Şemayı **sadece Flyway** yönetir; Hibernate `ddl-auto: validate` modunda çalışır.
-Referans şema: [`docs/sql/V1__init_schema.sql`](sql/V1__init_schema.sql). Önce migration'ı bu dokümana bakarak kendin yaz, sonra referansla karşılaştır. Dosya `src/main/resources/db/migration/` altına gider.
+PostgreSQL 16 + **pgvector** (lokalde Docker). Şemayı **sadece Flyway** yönetir; Hibernate `ddl-auto: validate` modunda çalışır.
+Referans şema: [`docs/sql/V1__init_schema.sql`](sql/V1__init_schema.sql). Dosya `src/main/resources/db/migration/` altına gider.
 
-Şema baştan **asenkron akışa göre** tasarlandı: bir cevap, değerlendirmesi gelmeden önce kaydedilir; bir oturum, soruları üretilmeden önce var olur. Bu yüzden bazı kolonlar nullable ve iki ayrı durum alanı (`interview_sessions.status`, `answers.evaluation_status`) var.
+> **Docker imajı değişmeli.** `postgres:16-alpine` pgvector içermez; migration `CREATE EXTENSION vector` satırında düşer. `docker-compose.yml`'da imajı **`pgvector/pgvector:pg16`** yap.
+
+Şema baştan **asenkron akışa** göre tasarlandı: bir doküman, chunk'ları çıkarılmadan önce var olur; bir chunk, embedding'i üretilmeden önce kaydedilir; bir asistan mesajı, cevabı gelmeden önce satır olarak durur. Bu yüzden `embedding`, `content`, `score` gibi alanlar nullable ve her varlığın bir durum kolonu var.
 
 ## ER Diyagramı
 
 ```mermaid
 erDiagram
-    users ||--o{ interview_sessions : "sahibi"
+    users ||--o{ documents : "sahibi"
+    users ||--o{ conversations : "sahibi"
     users ||--o{ llm_usage_logs : "kullanır"
-    interview_sessions ||--o{ questions : "içerir"
-    interview_sessions ||--o{ llm_jobs : "tetikler"
-    interview_sessions ||--o{ llm_usage_logs : "ilişkili"
-    questions ||--o| answers : "cevaplanır"
-    answers ||--o{ llm_jobs : "değerlendirilir"
+    documents ||--o{ document_chunks : "bölünür"
+    documents ||--o{ processing_jobs : "tetikler"
+    conversations ||--o{ messages : "içerir"
+    messages ||--o{ message_citations : "dayanır"
+    messages ||--o{ processing_jobs : "tetikler"
+    document_chunks ||--o{ message_citations : "kaynak"
 
     users {
         bigint id PK
@@ -27,56 +31,74 @@ erDiagram
         timestamptz updated_at
     }
 
-    interview_sessions {
+    documents {
         bigint id PK
         bigint user_id FK
-        varchar job_title
-        varchar seniority "INTERN | JUNIOR | MID | SENIOR"
-        varchar tech_stack
-        text job_description "nullable"
-        varchar language "TR | EN"
-        smallint question_count "3-10"
-        varchar status "PENDING | GENERATING | READY | IN_PROGRESS | COMPLETED | FAILED"
-        numeric overall_score "0-10, nullable"
-        text summary_feedback "nullable"
-        varchar llm_model
+        varchar title
+        varchar original_filename
+        varchar content_type "pdf | plain | markdown"
+        bigint size_bytes
+        char checksum_sha256 "user_id ile birlikte UNIQUE"
+        varchar storage_path
+        varchar status "PENDING | PARSING | EMBEDDING | READY | FAILED"
+        int page_count "nullable"
+        int chunk_count
+        varchar embedding_model
         varchar error_message "nullable"
         timestamptz created_at
         timestamptz updated_at
-        timestamptz completed_at "nullable"
+        timestamptz indexed_at "nullable"
     }
 
-    questions {
+    document_chunks {
         bigint id PK
-        bigint session_id FK
-        smallint order_index "session içinde unique"
-        text question_text
-        varchar category "TECHNICAL | BEHAVIORAL | SYSTEM_DESIGN | PROBLEM_SOLVING"
-        varchar difficulty "EASY | MEDIUM | HARD"
-        jsonb expected_key_points "string[]"
+        bigint document_id FK
+        int chunk_index "document içinde unique"
+        text content
+        int token_count
+        int page_number "nullable"
+        jsonb metadata
+        vector embedding "768 boyut, embed edilene kadar null"
         timestamptz created_at
     }
 
-    answers {
+    conversations {
         bigint id PK
-        bigint question_id FK,UK "soru başına tek cevap"
-        text answer_text
-        varchar evaluation_status "PENDING | RUNNING | DONE | FAILED"
-        smallint score "0-10, değerlendirme bitene kadar null"
-        jsonb strengths "string[]"
-        jsonb improvements "string[]"
-        text ideal_answer "nullable"
+        bigint user_id FK
+        varchar title
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    messages {
+        bigint id PK
+        bigint conversation_id FK
+        varchar role "USER | ASSISTANT"
+        text content "asistan cevabı gelene kadar null"
+        varchar status "PENDING | RUNNING | DONE | FAILED"
+        varchar model
+        int prompt_tokens
+        int completion_tokens
+        int latency_ms
         varchar error_message "nullable"
         timestamptz created_at
         timestamptz updated_at
-        timestamptz evaluated_at "nullable"
+        timestamptz answered_at "nullable"
     }
 
-    llm_jobs {
+    message_citations {
         bigint id PK
-        bigint session_id FK
-        bigint answer_id FK "sadece EVALUATE_ANSWER için"
-        varchar type "GENERATE_QUESTIONS | EVALUATE_ANSWER | SUMMARIZE_SESSION"
+        bigint message_id FK
+        bigint chunk_id FK
+        smallint rank_order "message içinde unique"
+        numeric similarity "-1..1"
+    }
+
+    processing_jobs {
+        bigint id PK
+        bigint document_id FK "parse/embed işleri"
+        bigint message_id FK "answer işi"
+        varchar type "PARSE_DOCUMENT | EMBED_CHUNKS | ANSWER_QUESTION"
         varchar status "QUEUED | RUNNING | DONE | FAILED"
         smallint attempts
         varchar error_message "nullable"
@@ -89,12 +111,14 @@ erDiagram
     llm_usage_logs {
         bigint id PK
         bigint user_id FK
-        bigint session_id FK "nullable"
+        bigint document_id FK "nullable"
+        bigint message_id FK "nullable"
         bigint job_id FK "nullable"
-        varchar operation
+        varchar operation "EMBED_DOCUMENT | EMBED_QUERY | CHAT_COMPLETION"
         varchar model
         int prompt_tokens
         int completion_tokens
+        int embedding_count
         int latency_ms
         boolean success
         varchar error_message
@@ -102,126 +126,204 @@ erDiagram
     }
 ```
 
-> Diyagram [Mermaid](https://mermaid.js.org/) ile yazıldı; GitHub ve çoğu Markdown görüntüleyici doğrudan çizer. README'ye PNG koymak istersen <https://mermaid.live> üzerinden dışa aktar.
-
 ## İlişkiler
 
 | İlişki | Tür | Silme davranışı | Açıklama |
 |---|---|---|---|
-| `users` → `interview_sessions` | 1 – N | `CASCADE` | Kullanıcının birden çok mülakatı olur |
-| `interview_sessions` → `questions` | 1 – N (0 olabilir) | `CASCADE` | Sorular oturumdan **sonra**, tüketici tarafından yazılır |
-| `questions` → `answers` | 1 – 0..1 | `CASCADE` | `answers.question_id` UNIQUE olduğu için soru başına tek cevap |
-| `interview_sessions` → `llm_jobs` | 1 – N | `CASCADE` | Her LLM işinin izi; oturum silinince işler de gider |
-| `answers` → `llm_jobs` | 1 – N | `CASCADE` | Değerlendirme işi ve varsa tekrar denemeleri |
-| `users` → `llm_usage_logs` | 1 – N | `CASCADE` | Kota ve istatistik için her LLM çağrısı |
-| `interview_sessions` → `llm_usage_logs` | 1 – N | `SET NULL` | Mülakat silinse de kullanım kaydı kalır (kota atlatılamasın) |
+| `users` → `documents` | 1 – N | `CASCADE` | Kullanıcının dokümanları |
+| `documents` → `document_chunks` | 1 – 0..N | `CASCADE` | Chunk'lar parse aşamasında oluşur; `PENDING` dokümanın chunk'ı yoktur |
+| `documents` → `processing_jobs` | 1 – N | `CASCADE` | Parse ve embed işleri, tekrar denemeler dahil |
+| `users` → `conversations` | 1 – N | `CASCADE` | Sohbetler |
+| `conversations` → `messages` | 1 – N | `CASCADE` | Mesajlar |
+| `messages` → `message_citations` | 1 – 0..N | `CASCADE` | Asistan cevabının kaynakları |
+| `document_chunks` → `message_citations` | 1 – 0..N | `CASCADE` | Doküman silinirse eski cevapların alıntıları da gider |
+| `messages` → `processing_jobs` | 1 – N | `CASCADE` | Cevap üretme işi |
+| `users` → `llm_usage_logs` | 1 – N | `CASCADE` | Kota ve gecikme istatistiği |
+| `documents` / `messages` → `llm_usage_logs` | 1 – N | `SET NULL` | Kaynak silinse de kullanım kaydı kalır (kota atlatılamasın) |
 
-> Dikkat: `questions` artık `1 – 1..N` değil `1 – 0..N`. Oturum `PENDING` durumundayken hiç sorusu yoktur. Eski tasarımdaki "en az 3 soru" garantisi artık DB'de değil, iş kuralında.
+> `message_citations` → `document_chunks` ilişkisinde `CASCADE` bilinçli bir tercih. Doküman silindiğinde eski cevaplardaki kaynak bağlantıları da kaybolur, cevap metni kalır. Alternatif `SET NULL` olurdu ama o zaman "bu cevap neye dayanıyordu?" sorusuna yanıt veremeyen yarım kayıtlar oluşurdu. Mülakatta sorulursa: "kaynak metni de saklamak isterdim, o zaman `citations` tablosuna `content_snapshot` kolonu eklerdim."
 
 ## Tablolar ve Tasarım Kararları
 
 ### `users`
-- E-posta benzersizliği `LOWER(email)` üzerinde fonksiyonel indeksle sağlanır (`Ali@x.com` ve `ali@x.com` aynı kişi). Servis katmanında da kaydetmeden önce e-postayı küçük harfe çevir.
-- `role` enum'u DB'de `VARCHAR` + `CHECK` olarak tutulur; JPA'da `EnumType.STRING`. PostgreSQL native enum yerine bu tercih edildi çünkü yeni değer eklemek migration'da daha kolay.
+- E-posta benzersizliği `LOWER(email)` üzerinde fonksiyonel indeksle. Servis katmanında da kaydetmeden önce küçük harfe çevir.
+- `role` DB'de `VARCHAR` + `CHECK`, JPA'da `EnumType.STRING`. Native enum yerine bu tercih edildi çünkü yeni değer eklemek migration'da daha kolay.
 
-### `interview_sessions`
-- `status` altı değerli bir durum makinesi ([Mimari → Oturum durum makinesi](02-mimari.md#oturum-durum-makinesi)). Varsayılan `PENDING`: kayıt atıldığında sorular henüz yok.
-- `error_message` LLM işi kalıcı olarak başarısız olduğunda kullanıcıya gösterilecek metni tutar (stack trace değil, anlaşılır bir cümle).
-- `overall_score` ve `summary_feedback` oturum tamamlanınca dolar.
-- `llm_model` hangi modelle üretildiğini saklar. Ollama'da model değiştirmek çok kolay olduğu için bu kolon burada Groq'a göre daha değerli: `llama3.2:3b` ile `qwen2.5:7b` sonuçlarını kıyaslayabilirsin.
-- `ix_sessions_user_created` indeksi "geçmişim" listesini (`user_id` filtresi + `created_at` azalan sıralama) hızlandırır.
+### `documents`
+- Dosyanın **kendisi veritabanında değil**, diskte (`storage_path`). PostgreSQL'e 20 MB'lık PDF'ler yazmak yedekleme ve bellek açısından kötü; blob yerine dosya sistemi doğru araç. `storage_path` göreli tutulur ki klasörü taşıyabilsin.
+- `checksum_sha256` + `user_id` üzerinde **UNIQUE**. Aynı kullanıcı aynı dosyayı ikinci kez yüklerse `409` alır; böylece yüzlerce embedding çağrısı boşa gitmez. Bu kısıt aynı zamanda RAG'in en sinir bozucu problemini engeller: aynı içeriğin iki kez indekslenmesi sonucu arama sonuçlarının aynı metinle dolması.
+- `status` beş değerli durum makinesi; varsayılan `PENDING`.
+- `chunk_count` ve `page_count` denormalize — her liste isteğinde `COUNT(*)` atmamak için. Embedding bitince yazılır.
+- `embedding_model` hangi modelle indekslendiğini saklar. Model değiştirirsen hangi dokümanların yeniden indekslenmesi gerektiğini bu kolondan bulursun.
+- `ix_documents_status_created` indeksi "takılı kalmış" dokümanları (uygulama çökmüşse `PARSING`'de kalanlar) bulmak için.
 
-### `questions`
-- `(session_id, order_index)` benzersiz — sıralama garanti.
-- `expected_key_points` LLM'in soruyu üretirken belirlediği "iyi bir cevapta olması gerekenler". Değerlendirme prompt'unda kullanılır, **cevap verilmeden frontend'e gönderilmez** (kopya olmasın).
+### `document_chunks`
+- **Projenin kalbi.** `embedding VECTOR(768)` kolonu pgvector tipinde.
+- `embedding` **nullable**: chunk parse aşamasında yazılır, embedding sonra gelir. `ix_chunks_pending_embedding` kısmi indeksi (`WHERE embedding IS NULL`) yarı kalmış indekslemeyi kaldığı yerden sürdürmeyi mümkün kılar.
+- `(document_id, chunk_index)` UNIQUE — sıra garantisi ve tekrar işlemede çakışma koruması.
+- `page_number` kaynak gösterimi için kritik: kullanıcıya "sayfa 12" diyebilmek cevabı doğrulanabilir kılar. PDF okurken sayfa bilgisini kaybetme.
+- `metadata` JSONB — başlık, bölüm adı gibi ileride eklenecek alanlar için esneklik. Şu an boş dizi/nesne.
+- `token_count` prompt'a kaç chunk sığdırabileceğini hesaplamak için.
 
-### `answers`
-- `question_id` üzerinde `UNIQUE` → her soruya tek cevap (tekrar gönderimde `409`).
-- `evaluation_status` cevabın değerlendirmesinin nerede olduğunu söyler. Cevap `PENDING` ile kaydedilir, tüketici `RUNNING` yapar, sonuç yazılınca `DONE` olur.
-- `score` ve `ideal_answer` **nullable**, çünkü değerlendirme gelmeden önce cevap zaten kayıtlı. `chk_answers_done_fields` kısıtı "DONE ise bu alanlar dolu olmalı" kuralını veritabanı seviyesinde garanti eder — uygulamadaki bir hata yüzünden yarım kayıt oluşmasını engeller.
-- `strengths` / `improvements` string dizisi olarak `JSONB`, varsayılan boş dizi.
+**HNSW indeksi:**
 
-### `llm_jobs`
-- Kuyruğa atılan her işin kalıcı izi. RabbitMQ mesajı uçucudur; bu tablo "ne oldu?" sorusunun cevabını verir.
-- `attempts` her denemede artar. `status = FAILED` ve `attempts = 3` olan kayıtlar DLQ'daki mesajlara karşılık gelir.
-- `chk_jobs_answer` kısıtı `EVALUATE_ANSWER` işinin mutlaka bir cevaba, diğer iş tiplerinin ise hiçbir cevaba bağlı olmamasını zorlar. Bu tür "koşullu zorunluluk" kısıtları mülakatta anlatılabilecek güzel bir detay.
-- `ix_jobs_status_created` indeksi iki işe yarar: admin ekranında bekleyen işleri listelemek ve "uzun süredir `RUNNING` kalmış işler" (uygulama çökmüşse) sorgusu.
-- **Idempotency anahtarı burası:** tüketici mesajı alınca önce `llm_jobs` kaydına bakar, `DONE` ise hiçbir şey yapmaz. RabbitMQ aynı mesajı iki kez teslim edebilir.
+```sql
+CREATE INDEX ix_chunks_embedding_hnsw ON document_chunks
+    USING hnsw (embedding vector_cosine_ops);
+```
+
+- HNSW (Hierarchical Navigable Small World) yaklaşık en yakın komşu indeksi. `ivfflat`'a göre daha yüksek doğruluk ve sorgu hızı sunar, karşılığında indeks oluşturma daha yavaş ve daha fazla bellek ister. Bu ölçekte doğru tercih.
+- `vector_cosine_ops` → `<=>` operatörü (kosinüs uzaklığı). Operatör sınıfı ile sorgudaki operatör **eşleşmezse indeks kullanılmaz**; `<->` (L2) yazarsan sequential scan alırsın.
+- Boş tabloda indeks oluşturmak sorun değil; pgvector satırlar eklendikçe indeksi günceller.
+
+### `conversations` / `messages`
+- Sohbet geçmişi klasik bir yapı, tek özelliği asistan mesajının **asenkron dolması**.
+- `content` nullable; `chk_messages_done_content` kısıtı "DONE ise içerik dolu olmalı" kuralını veritabanı seviyesinde garanti eder. Uygulamadaki bir hata yüzünden boş cevap kaydı oluşamaz.
+- `chk_messages_user_done` kullanıcı mesajının her zaman tamamlanmış ve dolu olmasını zorlar — kullanıcı mesajı asenkron bir şey beklemez.
+- `model`, `prompt_tokens`, `completion_tokens`, `latency_ms` her cevapta doldurulur. Bu, "hangi model ne kadar sürede cevap verdi?" sorusunu cevaplar ve README'ye koyacağın ölçümleri sağlar.
+- `conversations.updated_at` son mesajla güncellenir; liste bu kolona göre sıralanır (`ix_conversations_user_updated`).
+
+### `message_citations`
+- RAG'i basit bir chatbot'tan ayıran tablo. Her asistan cevabı için kullanılan chunk'lar, sırası ve benzerlik skoru.
+- `rank_order` 1'den başlar, `(message_id, rank_order)` UNIQUE. Kullanıcıya "[1]", "[2]" şeklinde numaralı kaynak göstermeyi ve prompt'taki numaralarla eşleştirmeyi sağlar.
+- `similarity NUMERIC(6,5)` — kosinüs benzerliği `-1..1`. Saklamanın değeri: sonradan "hangi eşik doğru?" sorusunu **veriyle** cevaplayabilirsin (bkz. [bakım sorguları](#i̇şe-yarayan-bakım-sorguları)).
+- `rank` yerine `rank_order` kullanıldı; `rank` PostgreSQL'de pencere fonksiyonu adı olduğu için kolon adı olarak karışıklık yaratıyor.
+
+### `processing_jobs`
+- Kuyruğa atılan her işin kalıcı izi. RabbitMQ mesajı uçucudur; bu tablo "ne oldu?" sorusunun cevabı.
+- `chk_jobs_target` kısıtı: `PARSE_DOCUMENT` / `EMBED_CHUNKS` işleri bir dokümana, `ANSWER_QUESTION` işi bir mesaja bağlı olmalı; ikisi birden veya hiçbiri olamaz. Bu tür koşullu zorunluluk kısıtları mülakatta anlatılabilecek bir detay.
+- `attempts` her denemede artar; `status = FAILED` ve `attempts = 3` olan kayıtlar DLQ'daki mesajlara karşılık gelir.
+- **Idempotency anahtarı burası:** tüketici mesajı alınca önce bu kaydın durumuna bakar, `DONE` ise hiçbir şey yapmaz.
+- `ix_jobs_status_created` bekleyen ve takılı kalmış işleri listelemek için.
 
 ### `llm_usage_logs`
-- Her LLM çağrısı (başarılı ya da başarısız) loglanır → günlük kota, gecikme ve token istatistikleri.
-- `job_id` ile hangi kuyruk işine ait olduğu izlenir; bir iş 3 kez denendiyse 3 log satırı oluşur.
-- Ollama `ChatResponse` metadata'sında `promptTokens` ve `generationTokens` döner (Ollama'nın `prompt_eval_count` / `eval_count` alanları). Parasal maliyet yok ama **gecikme analizi** için çok değerli: hangi model, kaç token, kaç ms.
-- Kota kontrolü: kullanıcının bugün (UTC 00:00'dan beri) kaç kaydı var? → `ix_usage_user_created` indeksini kullanır.
+- Her embedding ve chat çağrısı (başarılı ya da başarısız) loglanır.
+- `operation` üç değer: `EMBED_DOCUMENT` (indeksleme), `EMBED_QUERY` (soru), `CHAT_COMPLETION` (cevap). Ayırmanın değeri: indeksleme maliyeti ile sorgu maliyetini ayrı ölçebilmek.
+- `embedding_count` bir çağrıda kaç metin embed edildiğini tutar (batch çağrılarda > 1).
+- Ollama'nın `prompt_eval_count` / `eval_count` alanları Spring AI'da `promptTokens` / `generationTokens` olarak gelir. Parasal maliyet yok ama **gecikme analizi** için çok değerli.
+- Kota: kullanıcının bugünkü (UTC 00:00'dan beri) kayıt sayısı → `ix_usage_user_created`.
 
 ## İndeksler
 
 | İndeks | Kolonlar | Hangi sorgu için |
 |---|---|---|
 | `ux_users_email_lower` | `LOWER(email)` UNIQUE | Login ve kayıt kontrolü |
-| `ix_sessions_user_created` | `(user_id, created_at DESC)` | Geçmiş mülakatlar listesi |
-| `ux_questions_session_order` | `(session_id, order_index)` UNIQUE | Soru sırası |
-| `ux_answers_question` | `(question_id)` UNIQUE | Tek cevap kuralı + join |
-| `ix_jobs_session` | `(session_id)` | Oturumun işlerini getirme |
-| `ix_jobs_status_created` | `(status, created_at)` | Bekleyen / takılı kalmış işler |
+| `ux_documents_user_checksum` | `(user_id, checksum_sha256)` UNIQUE | Aynı dosyayı tekrar yüklemeyi engelleme |
+| `ix_documents_user_created` | `(user_id, created_at DESC)` | Doküman listesi |
+| `ix_documents_status_created` | `(status, created_at)` | Takılı kalmış dokümanlar |
+| `ix_chunks_document` | `(document_id)` | Dokümanın chunk'ları, silme |
+| **`ix_chunks_embedding_hnsw`** | `hnsw (embedding vector_cosine_ops)` | **Vektör benzerlik araması** |
+| `ix_chunks_pending_embedding` | `(document_id) WHERE embedding IS NULL` | Embedding bekleyen chunk'lar |
+| `ux_chunks_document_index` | `(document_id, chunk_index)` UNIQUE | Sıra garantisi |
+| `ix_conversations_user_updated` | `(user_id, updated_at DESC)` | Sohbet listesi |
+| `ix_messages_conversation` | `(conversation_id, created_at)` | Sohbet detayı |
+| `ix_citations_message` | `(message_id)` | Cevabın kaynakları |
+| `ix_jobs_document` | `(document_id)` | Dokümanın işleri |
+| `ix_jobs_status_created` | `(status, created_at)` | Bekleyen / takılı işler |
 | `ix_usage_user_created` | `(user_id, created_at)` | Günlük kota sayımı |
 
 ## JPA Eşleme Rehberi
 
 | Tablo | Entity | Dikkat edilecekler |
 |---|---|---|
-| ortak kolonlar | `BaseEntity` (`@MappedSuperclass`) | `id` → `GenerationType.IDENTITY` (şemada `GENERATED ALWAYS AS IDENTITY`), `createdAt` → `@CreationTimestamp`, `updatable = false`, `updatedAt` → `@UpdateTimestamp` |
+| ortak kolonlar | `BaseEntity` (`@MappedSuperclass`) | `id` → `GenerationType.IDENTITY`, `createdAt` → `@CreationTimestamp` + `updatable = false`, `updatedAt` → `@UpdateTimestamp` |
 | `users` | `User` | `role` → `@Enumerated(EnumType.STRING)`. Şifre hash'ini hiçbir DTO'ya koyma |
-| `interview_sessions` | `InterviewSession` | `user` → `@ManyToOne(fetch = LAZY)`. `questions` → `@OneToMany(mappedBy = "session", cascade = ALL, orphanRemoval = true)` + `@OrderBy("orderIndex")`. İlişkiyi iki taraflı kuran bir `addQuestion()` yardımcı metodu ekle |
-| `questions` | `Question` | `expectedKeyPoints` bir `List<String>`; Hibernate 6+ `@JdbcTypeCode(SqlTypes.JSON)` ile JSONB'ye ek kütüphane olmadan eşlenir. `answer` → `@OneToOne(mappedBy = "question")` |
-| `answers` | `Answer` | `question` → `@OneToOne(fetch = LAZY)` + `@JoinColumn(name = "question_id", unique = true)`. `score` alanı `Integer` (primitive `int` değil — null olabilir). `strengths`, `improvements` aynı JSONB yöntemiyle |
-| `llm_jobs` | `LlmJob` | `session` → `@ManyToOne(fetch = LAZY)`, `answerId` düz `Long` olarak tutulabilir. Tüketicide durum güncellemesi kısa ve ayrı bir `@Transactional` metotta yapılmalı |
-| `llm_usage_logs` | `LlmUsageLog` | İlişki kurmak yerine `userId` / `sessionId` / `jobId` düz `Long` kolon olarak tutulabilir; sadece yazılıp sayıldığı için yeterli |
+| `documents` | `Document` | `user` → `@ManyToOne(fetch = LAZY)`. `chunks` → `@OneToMany(mappedBy="document", cascade=ALL, orphanRemoval=true)`. Liste sorgularında chunk'ları **çekme** (yüzlerce satır) |
+| `document_chunks` | `DocumentChunk` | **`embedding` alanını JPA'ya eşlemeye çalışma.** Aşağıya bak |
+| `conversations` | `Conversation` | `messages` → `@OneToMany` + `@OrderBy("createdAt")` |
+| `messages` | `Message` | `content` nullable, `status` enum. `citations` → `@OneToMany` + `@OrderBy("rankOrder")` |
+| `message_citations` | `MessageCitation` | `chunk` → `@ManyToOne(fetch = LAZY)`; cevabı gösterirken `join fetch` ile chunk + document çek |
+| `processing_jobs` | `ProcessingJob` | `documentId` / `messageId` düz `Long` olarak tutulabilir |
+| `llm_usage_logs` | `LlmUsageLog` | İlişki kurmadan düz `Long` kolonlar yeterli; sadece yazılıp sayılıyor |
 
-Enum'lar: `Role`, `Seniority`, `InterviewLanguage`, `SessionStatus`, `EvaluationStatus`, `QuestionCategory`, `Difficulty`, `LlmJobType`, `LlmJobStatus`, `LlmOperation`. Değerleri `CHECK` kısıtlarıyla birebir aynı olmalı; aksi halde kayıt sırasında DB hatası alırsın.
+### `embedding` kolonunu nasıl ele alacaksın?
 
-**N+1 problemine dikkat:** Mülakat detay ekranı oturum + sorular + cevapları birlikte ister. Bunu tek sorguda çekmek için repository'de `left join fetch` kullanan bir JPQL sorgusu yaz (ör. `findDetailByIdAndUserId`). Sorguda `user.id` filtresini de kullan; böylece sahiplik kontrolü de aynı sorguda yapılır. Polling yüzünden bu sorgu 2 saniyede bir çalışacak, verimli olması normalden daha önemli. Test ederken `spring.jpa.show-sql=true` ile kaç sorgu atıldığına bak.
+Hibernate `vector` tipini bilmez. Üç seçenek var, **3. seçenek öneriliyor**:
 
-**Tüketicide transaction sınırı:** `LlmJobListener` içinde tüm metodu `@Transactional` yapma. 60 saniyelik LLM çağrısı boyunca DB bağlantısı açık kalır ve havuz tükenir. Doğrusu: kısa transaction (durumu `RUNNING` yap) → transaction dışında LLM çağrısı → kısa transaction (sonucu yaz).
+1. `@JdbcTypeCode(SqlTypes.VECTOR)` — Hibernate 6.4+ deneysel vektör desteği. Sürüm uyumsuzluğu riski var.
+2. `@Column(columnDefinition = "vector(768)")` + `String` alan — çalışır ama çirkin ve tip güvenliği yok.
+3. **Entity'de embedding alanını hiç tanımlama.** Chunk okuma/yazma işlerinde embedding'e JPA üzerinden erişme; embedding yazma ve arama işlemlerini `JdbcTemplate` ile yap.
 
-## Panel İstatistik Sorguları
+3. seçeneğin mantığı: embedding hiçbir zaman "iş mantığı verisi" olarak okunmuyor. Sadece (a) batch halinde yazılıyor, (b) `ORDER BY` içinde kullanılıyor. İkisi de native SQL'e çok daha uygun.
 
-`GET /api/stats/me` üç sorguyla beslenir. Hepsi `user_id` ile filtrelenir:
+Embedding yazma:
 
-| Sorgu | Tablolar | Mantık |
-|---|---|---|
-| Genel özet | `interview_sessions` | Toplam oturum sayısı, `status = 'COMPLETED'` olanların sayısı (`count(*) FILTER (WHERE ...)`), `overall_score` ortalaması |
-| Kategori bazlı ortalama | `answers` ⨝ `questions` ⨝ `interview_sessions` | `questions.category`'ye göre grupla, `answers.score` ortalaması ve cevap sayısı. **`WHERE answers.evaluation_status = 'DONE'`** filtresini unutma, yoksa değerlendirilmemiş cevaplar ortalamayı bozar |
-| Puan trendi | `interview_sessions` | Tamamlanmış son 10 oturum, `completed_at` azalan sırada |
+```java
+jdbcTemplate.batchUpdate(
+    "UPDATE document_chunks SET embedding = CAST(? AS vector) WHERE id = ?",
+    batchArgs   // her satır: [ "[0.12,0.98,...]", chunkId ]
+);
+```
 
-Bunları Spring Data'da native query + interface projection ile ya da JPQL ile yazabilirsin. Native SQL ile `FILTER` gibi PostgreSQL özelliklerini kullanmak mülakatta anlatılabilecek bir detay.
+pgvector metin formatı: köşeli parantez içinde virgülle ayrılmış float'lar (`[0.1,0.2,...]`). `float[]` → `String` çevirimi için küçük bir yardımcı yaz.
+
+**Hibernate `validate` uyarısı:** `ddl-auto: validate` entity'de olmayan bir kolon yüzünden şikâyet etmez (fazla kolon sorun değil, eksik kolon sorundur). Yani embedding'i entity'den çıkarmak validate'i bozmaz.
+
+### N+1 ve transaction sınırları
+
+- **Sohbet detayı** mesajlar + alıntılar + chunk + doküman adını birlikte ister. `left join fetch` kullanan tek bir JPQL yaz (`findDetailByIdAndUserId`), `userId` filtresini de aynı sorguya koy.
+- Polling yüzünden bu sorgu 2 saniyede bir çalışacak; verimliliği normalden daha önemli.
+- **Tüketicide tüm metodu `@Transactional` yapma.** 60 saniyelik embedding çağrısı boyunca DB bağlantısı açık kalır ve havuz tükenir. Doğrusu: kısa TX (durumu `RUNNING` yap) → TX dışında Ollama çağrısı → kısa TX (sonucu yaz).
+- Chunk'ları yazarken `batchUpdate` kullan; 80 chunk için 80 ayrı insert atma. `spring.jpa.properties.hibernate.jdbc.batch_size=50` ayarını da ekle.
 
 ## İşe Yarayan Bakım Sorguları
 
-Geliştirirken sık kullanacakların:
-
 ```sql
--- Takılı kalmış işler (uygulama çöktüyse RUNNING'de kalırlar)
-SELECT * FROM llm_jobs
-WHERE status = 'RUNNING' AND started_at < now() - INTERVAL '5 minutes';
+-- Takılı kalmış işler (uygulama iş sürerken kapandıysa)
+SELECT * FROM processing_jobs
+WHERE status = 'RUNNING' AND started_at < now() - INTERVAL '10 minutes';
 
--- Başarısız işler ve sebepleri
-SELECT type, error_message, count(*) FROM llm_jobs
-WHERE status = 'FAILED' GROUP BY type, error_message ORDER BY count(*) DESC;
+-- Embedding'i yarım kalmış dokümanlar
+SELECT d.id, d.title, count(c.id) AS chunks,
+       count(c.embedding) AS embedded
+FROM documents d
+LEFT JOIN document_chunks c ON c.document_id = d.id
+GROUP BY d.id, d.title
+HAVING count(c.id) <> count(c.embedding);
+
+-- Benzerlik eşiğini kalibre etmek: cevaplarda kullanılan skorların dağılımı
+SELECT width_bucket(similarity, 0, 1, 10) AS bucket,
+       count(*), round(avg(similarity), 3) AS avg_sim
+FROM message_citations
+GROUP BY bucket ORDER BY bucket;
+
+-- "Bulamadım" cevabı ne sıklıkla dönüyor? (retrieval kalitesi göstergesi)
+SELECT count(*) FILTER (WHERE id NOT IN (SELECT message_id FROM message_citations)) AS kaynaksiz,
+       count(*) AS toplam
+FROM messages WHERE role = 'ASSISTANT' AND status = 'DONE';
 
 -- Model bazında ortalama gecikme
-SELECT model, operation, avg(latency_ms)::int AS avg_ms, count(*) FROM llm_usage_logs
-WHERE success GROUP BY model, operation;
+SELECT model, operation, avg(latency_ms)::int AS avg_ms, count(*)
+FROM llm_usage_logs WHERE success GROUP BY model, operation;
+
+-- Bir sorunun sonuçlarını elle incelemek (embedding'i uygulamadan al)
+SELECT c.id, d.title, c.page_number,
+       round((1 - (c.embedding <=> CAST(:q AS vector)))::numeric, 4) AS similarity,
+       left(c.content, 120) AS onizleme
+FROM document_chunks c
+JOIN documents d ON d.id = c.document_id
+WHERE d.user_id = :userId AND d.status = 'READY' AND c.embedding IS NOT NULL
+ORDER BY c.embedding <=> CAST(:q AS vector)
+LIMIT 10;
 ```
 
-Sonuncusu model seçerken işine yarar: `llama3.2:3b` ile `qwen2.5:7b` arasındaki hız farkını ölçüp README'ye yazabilirsin.
+Sondan üçüncü sorgu portfolyoda değerli: "eşiği 0.25 seçtim çünkü alıntı skorlarının dağılımına baktım" demek, rastgele bir sayı seçmekten farklıdır.
 
 ## Seed Verisi
 
-Test kullanıcısını elle eklemek yerine `POST /api/auth/register` kullan. Seed gerekirse sadece `local` profilinde çalışan ayrı bir Flyway lokasyonu (`db/seed`) kullan.
+Kullanıcıyı `POST /api/auth/register` ile oluştur. Doküman seed'i yapma — gerçek bir PDF yükleyip akışı baştan çalıştırmak hem daha gerçekçi hem test edici. Repoda `docs/sample/` altına küçük bir örnek PDF koymak README'deki 3 komutluk kurulumu tamamlar.
 
 ## Şema Değişiklikleri
 
-Şemayı değiştirmek için **uygulanmış bir migration'ı asla düzenleme** (Flyway checksum hatası verir). Yeni dosya ekle: `V2__add_followup_question.sql` gibi. Örneğin bonus "takip sorusu" özelliği için `questions` tablosuna kendine referans veren, `nullable` bir `parent_question_id` kolonu eklemek yeterli.
+Uygulanmış bir migration'ı **asla düzenleme** (Flyway checksum hatası). Yeni dosya ekle.
 
-`V1` henüz hiçbir ortamda çalışmadıysa (ki şu an öyle) onu düzenlemek serbest — asenkron yapıyı baştan koymamızın sebebi de bu.
+Muhtemel `V2` adayları:
+
+| Değişiklik | Dosya | Not |
+|---|---|---|
+| Hibrit arama | `V2__add_fulltext_search.sql` | `document_chunks`'a `tsvector` kolonu + GIN indeks |
+| Embedding modeli değişimi | `V2__change_embedding_dimension.sql` | `vector(768)` → `vector(1024)`; **tüm embedding'ler NULL'lanır ve yeniden indekslenir** |
+| Alıntı metni snapshot'ı | `V2__add_citation_snapshot.sql` | `message_citations`'a `content_snapshot` |
+| Workspace / paylaşım | `V2__add_workspaces.sql` | `documents.user_id` → `workspace_id` |
+
+`V1` henüz hiçbir ortamda çalışmadıysa onu düzenlemek serbest.

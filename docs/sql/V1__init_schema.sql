@@ -1,5 +1,11 @@
--- InterviewPilot - initial schema
+-- DocuMind - initial schema
 -- Kopyala: src/main/resources/db/migration/V1__init_schema.sql
+--
+-- ÖNEMLİ: PostgreSQL imajı pgvector içermeli (pgvector/pgvector:pg16).
+-- Standart postgres:16-alpine imajında bu migration "extension vector is not available" ile düşer.
+
+CREATE EXTENSION IF NOT EXISTS vector;
+
 
 CREATE TABLE users (
     id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -16,77 +22,121 @@ CREATE TABLE users (
 CREATE UNIQUE INDEX ux_users_email_lower ON users (LOWER(email));
 
 
-CREATE TABLE interview_sessions (
-    id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    user_id           BIGINT       NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    job_title         VARCHAR(120) NOT NULL,
-    seniority         VARCHAR(20)  NOT NULL,
-    tech_stack        VARCHAR(500) NOT NULL,
-    job_description   TEXT,
-    language          VARCHAR(5)   NOT NULL DEFAULT 'TR',
-    question_count    SMALLINT     NOT NULL,
-    status            VARCHAR(20)  NOT NULL DEFAULT 'PENDING',
-    overall_score     NUMERIC(4, 2),
-    summary_feedback  TEXT,
-    llm_model         VARCHAR(100),
-    error_message     VARCHAR(500),
-    created_at        TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    updated_at        TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    completed_at      TIMESTAMPTZ,
-    CONSTRAINT chk_sessions_seniority CHECK (seniority IN ('INTERN', 'JUNIOR', 'MID', 'SENIOR')),
-    CONSTRAINT chk_sessions_language  CHECK (language IN ('TR', 'EN')),
-    CONSTRAINT chk_sessions_status    CHECK (status IN ('PENDING', 'GENERATING', 'READY', 'IN_PROGRESS', 'COMPLETED', 'FAILED')),
-    CONSTRAINT chk_sessions_qcount    CHECK (question_count BETWEEN 3 AND 10),
-    CONSTRAINT chk_sessions_score     CHECK (overall_score IS NULL OR overall_score BETWEEN 0 AND 10)
-);
-
-CREATE INDEX ix_sessions_user_created ON interview_sessions (user_id, created_at DESC);
-
-
-CREATE TABLE questions (
-    id                   BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    session_id           BIGINT       NOT NULL REFERENCES interview_sessions (id) ON DELETE CASCADE,
-    order_index          SMALLINT     NOT NULL,
-    question_text        TEXT         NOT NULL,
-    category             VARCHAR(30)  NOT NULL,
-    difficulty           VARCHAR(10)  NOT NULL,
-    expected_key_points  JSONB        NOT NULL DEFAULT '[]'::jsonb,
-    created_at           TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    CONSTRAINT ux_questions_session_order UNIQUE (session_id, order_index),
-    CONSTRAINT chk_questions_category   CHECK (category IN ('TECHNICAL', 'BEHAVIORAL', 'SYSTEM_DESIGN', 'PROBLEM_SOLVING')),
-    CONSTRAINT chk_questions_difficulty CHECK (difficulty IN ('EASY', 'MEDIUM', 'HARD'))
-);
-
-
--- Cevap, değerlendirme gelmeden önce kaydedilir: score ve ideal_answer bu yüzden nullable.
-CREATE TABLE answers (
+-- Yüklenen dosyanın kendisi diskte tutulur; burada sadece üstverisi ve işlenme durumu var.
+CREATE TABLE documents (
     id                 BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    question_id        BIGINT      NOT NULL REFERENCES questions (id) ON DELETE CASCADE,
-    answer_text        TEXT        NOT NULL,
-    evaluation_status  VARCHAR(20) NOT NULL DEFAULT 'PENDING',
-    score              SMALLINT,
-    strengths          JSONB       NOT NULL DEFAULT '[]'::jsonb,
-    improvements       JSONB       NOT NULL DEFAULT '[]'::jsonb,
-    ideal_answer       TEXT,
+    user_id            BIGINT       NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    title              VARCHAR(255) NOT NULL,
+    original_filename  VARCHAR(255) NOT NULL,
+    content_type       VARCHAR(100) NOT NULL,
+    size_bytes         BIGINT       NOT NULL,
+    checksum_sha256    CHAR(64)     NOT NULL,
+    storage_path       VARCHAR(500) NOT NULL,
+    status             VARCHAR(20)  NOT NULL DEFAULT 'PENDING',
+    page_count         INTEGER,
+    chunk_count        INTEGER      NOT NULL DEFAULT 0,
+    embedding_model    VARCHAR(100),
     error_message      VARCHAR(500),
-    created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
-    evaluated_at       TIMESTAMPTZ,
-    CONSTRAINT ux_answers_question    UNIQUE (question_id),
-    CONSTRAINT chk_answers_eval_status CHECK (evaluation_status IN ('PENDING', 'RUNNING', 'DONE', 'FAILED')),
-    CONSTRAINT chk_answers_score      CHECK (score IS NULL OR score BETWEEN 0 AND 10),
-    -- Değerlendirme bittiyse puan ve ideal cevap dolmuş olmalı
-    CONSTRAINT chk_answers_done_fields CHECK (
-        evaluation_status <> 'DONE' OR (score IS NOT NULL AND ideal_answer IS NOT NULL)
-    )
+    created_at         TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    updated_at         TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    indexed_at         TIMESTAMPTZ,
+    CONSTRAINT chk_documents_status CHECK (status IN ('PENDING', 'PARSING', 'EMBEDDING', 'READY', 'FAILED')),
+    CONSTRAINT chk_documents_type   CHECK (content_type IN ('application/pdf', 'text/plain', 'text/markdown')),
+    CONSTRAINT chk_documents_size   CHECK (size_bytes > 0),
+    -- Aynı kullanıcı aynı dosyayı iki kez yükleyip embedding maliyetini boşa harcamasın
+    CONSTRAINT ux_documents_user_checksum UNIQUE (user_id, checksum_sha256)
 );
 
+CREATE INDEX ix_documents_user_created ON documents (user_id, created_at DESC);
+-- "Takılı kalan" belgeleri bulmak için
+CREATE INDEX ix_documents_status_created ON documents (status, created_at);
 
--- Kuyruğa atılan her LLM işinin izi. DLQ'ya düşen işleri buradan görürsün.
-CREATE TABLE llm_jobs (
+
+-- Chunk'lar parse aşamasında yazılır, embedding sonra (asenkron) doldurulur.
+-- vector(768) → nomic-embed-text modelinin boyutu. Model değişirse yeni migration gerekir.
+CREATE TABLE document_chunks (
+    id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    document_id  BIGINT      NOT NULL REFERENCES documents (id) ON DELETE CASCADE,
+    chunk_index  INTEGER     NOT NULL,
+    content      TEXT        NOT NULL,
+    token_count  INTEGER,
+    page_number  INTEGER,
+    metadata     JSONB       NOT NULL DEFAULT '{}'::jsonb,
+    embedding    VECTOR(768),
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT ux_chunks_document_index UNIQUE (document_id, chunk_index),
+    CONSTRAINT chk_chunks_content CHECK (length(content) > 0)
+);
+
+CREATE INDEX ix_chunks_document ON document_chunks (document_id);
+
+-- Yaklaşık en yakın komşu araması. Sorgu ORDER BY embedding <=> :q ile bu indeksi kullanır.
+-- vector_cosine_ops: kosinüs uzaklığı (<=> operatörü).
+CREATE INDEX ix_chunks_embedding_hnsw ON document_chunks
+    USING hnsw (embedding vector_cosine_ops);
+
+-- Embedding'i bekleyen chunk'ları bulmak için kısmi indeks
+CREATE INDEX ix_chunks_pending_embedding ON document_chunks (document_id)
+    WHERE embedding IS NULL;
+
+
+CREATE TABLE conversations (
+    id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id     BIGINT       NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    title       VARCHAR(200) NOT NULL,
+    created_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+CREATE INDEX ix_conversations_user_updated ON conversations (user_id, updated_at DESC);
+
+
+-- Kullanıcı mesajı anında DONE olur; asistan mesajı PENDING doğar, tüketici doldurur.
+CREATE TABLE messages (
+    id                 BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    conversation_id    BIGINT       NOT NULL REFERENCES conversations (id) ON DELETE CASCADE,
+    role               VARCHAR(20)  NOT NULL,
+    content            TEXT,
+    status             VARCHAR(20)  NOT NULL DEFAULT 'DONE',
+    model              VARCHAR(100),
+    prompt_tokens      INTEGER,
+    completion_tokens  INTEGER,
+    latency_ms         INTEGER,
+    error_message      VARCHAR(500),
+    created_at         TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    updated_at         TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    answered_at        TIMESTAMPTZ,
+    CONSTRAINT chk_messages_role   CHECK (role IN ('USER', 'ASSISTANT')),
+    CONSTRAINT chk_messages_status CHECK (status IN ('PENDING', 'RUNNING', 'DONE', 'FAILED')),
+    -- Kullanıcı mesajı her zaman tamamlanmış ve içeriği dolu olmalı
+    CONSTRAINT chk_messages_user_done CHECK (role <> 'USER' OR (status = 'DONE' AND content IS NOT NULL)),
+    -- Tamamlanmış asistan mesajının içeriği boş olamaz
+    CONSTRAINT chk_messages_done_content CHECK (status <> 'DONE' OR content IS NOT NULL)
+);
+
+CREATE INDEX ix_messages_conversation ON messages (conversation_id, created_at);
+
+
+-- Asistan cevabının hangi chunk'lara dayandığı. RAG'in en değerli çıktısı: kaynak gösterimi.
+CREATE TABLE message_citations (
+    id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    message_id  BIGINT        NOT NULL REFERENCES messages (id) ON DELETE CASCADE,
+    chunk_id    BIGINT        NOT NULL REFERENCES document_chunks (id) ON DELETE CASCADE,
+    rank_order  SMALLINT      NOT NULL,
+    similarity  NUMERIC(6, 5) NOT NULL,
+    CONSTRAINT ux_citations_message_rank UNIQUE (message_id, rank_order),
+    CONSTRAINT chk_citations_similarity  CHECK (similarity BETWEEN -1 AND 1),
+    CONSTRAINT chk_citations_rank        CHECK (rank_order > 0)
+);
+
+CREATE INDEX ix_citations_message ON message_citations (message_id);
+
+
+-- Kuyruğa atılan her işin kalıcı izi. DLQ'ya düşen işleri buradan görürsün.
+CREATE TABLE processing_jobs (
     id             BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    session_id     BIGINT       NOT NULL REFERENCES interview_sessions (id) ON DELETE CASCADE,
-    answer_id      BIGINT       REFERENCES answers (id) ON DELETE CASCADE,
+    document_id    BIGINT       REFERENCES documents (id) ON DELETE CASCADE,
+    message_id     BIGINT       REFERENCES messages (id) ON DELETE CASCADE,
     type           VARCHAR(30)  NOT NULL,
     status         VARCHAR(20)  NOT NULL DEFAULT 'QUEUED',
     attempts       SMALLINT     NOT NULL DEFAULT 0,
@@ -95,34 +145,35 @@ CREATE TABLE llm_jobs (
     updated_at     TIMESTAMPTZ  NOT NULL DEFAULT now(),
     started_at     TIMESTAMPTZ,
     finished_at    TIMESTAMPTZ,
-    CONSTRAINT chk_jobs_type   CHECK (type IN ('GENERATE_QUESTIONS', 'EVALUATE_ANSWER', 'SUMMARIZE_SESSION')),
+    CONSTRAINT chk_jobs_type   CHECK (type IN ('PARSE_DOCUMENT', 'EMBED_CHUNKS', 'ANSWER_QUESTION')),
     CONSTRAINT chk_jobs_status CHECK (status IN ('QUEUED', 'RUNNING', 'DONE', 'FAILED')),
-    -- EVALUATE_ANSWER işinin bir cevabı olmalı, diğerlerinin olmamalı
-    CONSTRAINT chk_jobs_answer CHECK (
-        (type = 'EVALUATE_ANSWER' AND answer_id IS NOT NULL)
-        OR (type <> 'EVALUATE_ANSWER' AND answer_id IS NULL)
+    -- Belge işleri belgeye, cevap işi mesaja bağlı olmalı
+    CONSTRAINT chk_jobs_target CHECK (
+        (type IN ('PARSE_DOCUMENT', 'EMBED_CHUNKS') AND document_id IS NOT NULL AND message_id IS NULL)
+        OR (type = 'ANSWER_QUESTION' AND message_id IS NOT NULL AND document_id IS NULL)
     )
 );
 
-CREATE INDEX ix_jobs_session ON llm_jobs (session_id);
--- "Takılı kalan işler" ve admin görünümü için
-CREATE INDEX ix_jobs_status_created ON llm_jobs (status, created_at);
+CREATE INDEX ix_jobs_document ON processing_jobs (document_id);
+CREATE INDEX ix_jobs_status_created ON processing_jobs (status, created_at);
 
 
 CREATE TABLE llm_usage_logs (
     id                  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id             BIGINT       NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    session_id          BIGINT       REFERENCES interview_sessions (id) ON DELETE SET NULL,
-    job_id              BIGINT       REFERENCES llm_jobs (id) ON DELETE SET NULL,
+    document_id         BIGINT       REFERENCES documents (id) ON DELETE SET NULL,
+    message_id          BIGINT       REFERENCES messages (id) ON DELETE SET NULL,
+    job_id              BIGINT       REFERENCES processing_jobs (id) ON DELETE SET NULL,
     operation           VARCHAR(30)  NOT NULL,
     model               VARCHAR(100) NOT NULL,
     prompt_tokens       INTEGER,
     completion_tokens   INTEGER,
+    embedding_count     INTEGER,
     latency_ms          INTEGER      NOT NULL,
     success             BOOLEAN      NOT NULL,
     error_message       VARCHAR(500),
     created_at          TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    CONSTRAINT chk_usage_operation CHECK (operation IN ('GENERATE_QUESTIONS', 'EVALUATE_ANSWER', 'SUMMARIZE_SESSION'))
+    CONSTRAINT chk_usage_operation CHECK (operation IN ('EMBED_DOCUMENT', 'EMBED_QUERY', 'CHAT_COMPLETION'))
 );
 
 -- Günlük kota sorgusu: WHERE user_id = ? AND created_at >= <bugün 00:00>

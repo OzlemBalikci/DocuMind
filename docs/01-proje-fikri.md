@@ -1,68 +1,81 @@
 # 1. Proje Fikri ve Kapsam
 
-## Fikir: InterviewPilot
+## Fikir: DocuMind — Şirket İçi Doküman Asistanı (RAG)
 
-Junior geliştiricilerin (ve aslında herkesin) en çok zorlandığı konulardan biri teknik mülakatlar.
-InterviewPilot, kullanıcının hedeflediği pozisyona göre **kişiselleştirilmiş mülakat simülasyonu** yapan bir web uygulaması:
+Her şirkette aynı problem var: bilgi PDF'lerde, Confluence export'larında, onboarding dokümanlarında dağınık duruyor. Yeni gelen "yıllık izin kaç gün?" veya "deploy süreci nasıl işliyor?" diye sorduğunda cevabı 40 sayfalık bir PDF'in içinde aramak zorunda.
 
-1. Kullanıcı pozisyonu (ör. "Java Backend Developer"), seviyeyi (Junior/Mid/Senior), teknolojileri (ör. "Spring Boot, PostgreSQL, Docker") ve isteğe bağlı olarak iş ilanı metnini girer.
-2. İstek anında bir kuyruğa düşer, API hemen cevap döner. Arka planda çalışan tüketici LLM'den 5–10 soru üretir (teknik, davranışsal, sistem tasarımı karışık).
-3. Kullanıcı soruları tek tek cevaplar.
-4. Her cevap LLM tarafından değerlendirilir: **0–10 puan, güçlü yönler, geliştirilmesi gerekenler, örnek ideal cevap**.
-5. Mülakat bitince genel skor ve özet geri bildirim oluşturulur.
-6. Panelde geçmiş mülakatlar, ortalama puan ve kategori bazlı gelişim görünür.
+DocuMind, yüklenen dokümanlar üzerinde **kaynak göstererek** soru cevaplayan bir asistan:
 
-LLM **lokalde Ollama** ile çalışır: API anahtarı, kredi kartı, internet bağlantısı gerekmez. Lokal modeller yavaş olduğu için (bir soru seti 30–90 sn sürebilir) tüm LLM çağrıları **RabbitMQ** üzerinden asenkron işlenir; HTTP isteği beklemez.
+1. Kullanıcı doküman yükler (PDF, Markdown, düz metin).
+2. Sistem dokümanı arka planda işler: metni çıkarır, anlamlı parçalara (chunk) böler, her parçayı embedding'e çevirip pgvector'a yazar.
+3. Kullanıcı soru sorar.
+4. Soru embedding'e çevrilir, vektör benzerlik aramasıyla en ilgili parçalar bulunur.
+5. Bu parçalar bağlam olarak LLM'e verilir, LLM cevabı **sadece bu bağlamdan** üretir.
+6. Cevabın altında hangi dokümanın hangi sayfasından geldiği gösterilir.
+
+```text
+Soru → Embedding → Vector Search (pgvector) → İlgili Chunk'lar → Ollama Prompt → Cevap + Kaynaklar
+```
+
+Tüm yığın lokalde çalışır: LLM ve embedding modeli **Ollama**, vektör deposu **pgvector**, doküman işleme kuyruğu **RabbitMQ**. API anahtarı, kredi kartı ve internet bağlantısı gerekmez — bu, gerçek şirket dokümanlarıyla çalışan bir araç için sadece bir maliyet avantajı değil, **veri gizliliği gereksinimi**.
 
 ## Neden bu fikir iyi bir portfolyo projesi?
 
 | Kriter | Karşılığı |
 |---|---|
-| Gerçek bir problemi çözüyor | Mülakata hazırlık herkesin derdi, mülakatta anlatması kolay |
-| LLM kullanımı "süs" değil, merkezde | Soru üretme + değerlendirme + özetleme = 3 farklı LLM kullanım senaryosu |
-| Klasik backend becerilerini gösteriyor | Auth, ilişkisel veri modeli, CRUD, validasyon, test, migration |
-| Asenkron mimari gösteriyor | RabbitMQ iş kuyruğu, dead letter queue, retry, durum makinesi — düz CRUD'un bir adım ötesi |
-| Sıfır maliyet, sıfır hesap | Ollama + Docker; hiçbir bulut servisine kayıt olmaya gerek yok |
-| Demo etmesi kolay | `docker compose up` + 2 komut; README'deki GIF akışın tamamını gösterir |
+| Sektörde en çok aranan LLM becerisi | RAG, 2024'ten beri kurumsal LLM projelerinin fiilî standardı. "LLM'e prompt attım" demekle "retrieval pipeline kurdum" demek arasında uçurum var |
+| Klasik backend becerileri merkezde | Auth, dosya yükleme, ilişkisel veri modeli, migration, validasyon, test |
+| Asenkron mimari zorunlu, süs değil | 40 sayfalık bir PDF ≈ 80 chunk ≈ 80 embedding çağrısı ≈ dakikalar. HTTP isteği bunu bekleyemez → RabbitMQ |
+| Veritabanı derinliği | pgvector, HNSW indeksi, kosinüs benzerliği, kısmi indeks — ORM'in ötesinde SQL bilgisi |
+| Halüsinasyonla mücadele somut | Kaynak gösterimi + benzerlik eşiği + "bilmiyorum" davranışı ölçülebilir kalite kararları |
+| Sıfır maliyet, sıfır hesap | Ollama + Docker; veri makineden çıkmıyor |
+| Demo etmesi kolay | Bir PDF yükle, soru sor, cevabın kaynağını göster — 20 saniyelik GIF anlatıyor |
 
 ## Kullanıcı Hikâyeleri (MVP)
 
 | ID | Hikâye | Kabul kriteri |
 |---|---|---|
-| US-1 | Kullanıcı olarak e-posta ve şifreyle kayıt olabilmeliyim | Aynı e-posta ikinci kez kaydedilemez, şifre BCrypt ile saklanır |
-| US-2 | Kullanıcı olarak giriş yapıp JWT almalıyım | Hatalı giriş 401 döner, token 24 saat geçerli |
-| US-3 | Yeni bir mülakat oturumu başlatabilmeliyim | Pozisyon, seviye, teknolojiler, soru sayısı (3–10), dil (TR/EN) girilir |
-| US-4 | Oturum oluşunca sorular arka planda üretilmeli | API `202` ve `status: PENDING` döner; sorular hazır olunca `status: READY` olur, sorular sıralı/kategorili/zorluk seviyeli kaydedilir |
-| US-5 | Her soruya cevap yazıp değerlendirme almalıyım | Cevap kaydedilir, değerlendirme asenkron gelir; puan 0–10, güçlü yönler, eksikler, ideal cevap gösterilir |
-| US-6 | Mülakatı bitirince genel skor ve özet görmeliyim | Tüm sorular cevaplanıp değerlendirilmeden bitirilemez |
-| US-7 | Geçmiş mülakatlarımı listeleyebilmeliyim | Sayfalı, en yeni üstte |
-| US-8 | Panelde istatistiklerimi görmeliyim | Toplam mülakat, ortalama puan, kategori bazlı ortalama |
-| US-9 | LLM işi başarısız olursa bunu görmeli ve tekrar deneyebilmeliyim | `status: FAILED` + hata mesajı, "Tekrar dene" ile iş yeniden kuyruğa girer |
-| US-10 | Günlük LLM kullanım hakkım sınırlı olmalı | Limit aşılırsa 429 ve anlaşılır mesaj |
+| US-1 | E-posta ve şifreyle kayıt olabilmeliyim | Aynı e-posta ikinci kez kaydedilemez, şifre BCrypt ile saklanır |
+| US-2 | Giriş yapıp JWT almalıyım | Hatalı giriş 401 döner, token 24 saat geçerli |
+| US-3 | Doküman yükleyebilmeliyim | PDF / MD / TXT, max 20 MB; API `202` ve `status: PENDING` döner |
+| US-4 | Dokümanın işlenme durumunu görmeliyim | `PENDING → PARSING → EMBEDDING → READY`; chunk sayısı ve sayfa sayısı görünür |
+| US-5 | Dokümanlarımı listeleyip silebilmeliyim | Sayfalı liste; silme chunk'ları ve diskteki dosyayı da temizler |
+| US-6 | Doküman içeriği hakkında soru sorabilmeliyim | Cevap sadece yüklediğim dokümanlara dayanır |
+| US-7 | Cevabın kaynağını görmeliyim | Her cevapta kullanılan chunk'lar, doküman adı, sayfa no ve benzerlik skoru |
+| US-8 | Bağlamda cevap yoksa uydurulmamalı | Benzerlik eşiğinin altındaysa "Dokümanlarında bu bilgiyi bulamadım" döner |
+| US-9 | Sohbet geçmişimi görebilmeliyim | Konuşma başlıkları listelenir, mesajlar sırayla görünür |
+| US-10 | Başkasının dokümanına erişemememeliyim | Her sorgu `user_id` ile filtrelenir; vektör aramasında da aynı filtre |
+| US-11 | İşlem başarısız olursa görüp tekrar deneyebilmeliyim | `status: FAILED` + hata mesajı, "Tekrar dene" işi yeniden kuyruğa alır |
+| US-12 | Günlük kullanım hakkım sınırlı olmalı | Limit aşılırsa 429 ve anlaşılır mesaj |
 
-> US-10 notu: Lokal Ollama'nın parasal maliyeti yok, ama **aynı anda tek isteği** makul hızda işleyebiliyor. Kota + tek tüketicili kuyruk, bir kullanıcının makineyi kilitlemesini engelliyor. Yani limit yapay değil, gerçek bir kaynak sınırını koruyor.
+> US-10 sadece bir yetki kontrolü değil, **RAG'e özgü bir güvenlik meselesi.** Vektör aramasını kullanıcıya göre filtrelemeyi unutursan, benzerlik araması başkasının dokümanından bir parçayı getirir ve LLM onu cevaba yazar. Klasik CRUD'da böyle bir sızıntı yolu yok; mülakatta anlatmaya değer.
 
 ## Bonus (zaman kalırsa, öncelik sırasıyla)
 
-1. **Değerlendirmeyi streaming ile göstermek** (SSE, Spring AI `stream()`) — çok etkileyici görünür
-2. **Oturumu PDF / Markdown olarak dışa aktarma**
-3. **Takip sorusu**: LLM cevaba göre bir "follow-up" sorusu sorsun
-4. **Model karşılaştırma**: aynı cevabı iki farklı Ollama modeline değerlendirtip sonuçları yan yana göstermek
-5. **Refresh token** ve çıkışta token iptali
-6. **Swagger UI** (springdoc-openapi) — API'yi canlı görebilmek
-7. **Rol bazlı yetki** (ADMIN kullanıcı toplam LLM kullanımını ve kuyruk durumunu görebilsin)
+1. **Streaming cevap** (SSE, Spring AI `stream()`) — lokal modelin yavaşlığını avantaja çevirir
+2. **Hibrit arama**: pgvector + PostgreSQL full-text (`tsvector`) skorlarını birleştirmek. Özel isim ve kod parçası aramalarında saf vektör aramasından belirgin daha iyi
+3. **Re-ranking**: top-20 chunk'ı çekip küçük bir modelle yeniden sıralamak
+4. **Konuşma bağlamı**: önceki soruları dikkate alan soru yeniden yazımı (query rewriting)
+5. **Doküman kapsamı seçimi**: "sadece şu 2 dokümanda ara"
+6. **Chunk önizleme**: kaynağa tıklayınca ilgili metni vurgulu göstermek
+7. **Swagger UI** (springdoc-openapi)
+8. **Model karşılaştırma**: aynı soruyu iki farklı chat modeline sordurup cevapları yan yana göstermek
 
 ## Kapsam Dışı (bilerek yapmıyoruz)
 
-- **Bulut deploy.** Proje lokalde çalışır. Ollama ücretsiz barındırmada (512 MB RAM) çalışmadığı için canlı ortam yerine lokal kurulum + README'deki GIF tercih edildi. `LlmClient` arayüzü sayesinde ileride Groq'a geçip deploy etmek sadece bir implementasyon ve config değişikliği.
-- Ödeme sistemi, e-posta doğrulama, şifre sıfırlama e-postası
-- Mikroservis mimarisi (tek servis yeterli ve daha doğru; kuyruk varlığı mikroservis gerektirmez)
-- Kendi modelini eğitmek / fine-tune
+- **Bulut deploy.** Ollama ücretsiz barındırmada (512 MB RAM) çalışmaz. `LlmClient` / `EmbeddingClient` arayüzleri sayesinde ileride Groq veya OpenAI'ye geçip deploy etmek bir implementasyon + config değişikliği.
+- **Gerçek zamanlı doküman senkronizasyonu** (Confluence/Drive webhook'ları) — elle yükleme yeterli
+- **OCR** (taranmış PDF'lerden görüntü tanıma) — metin katmanı olan PDF'lerle sınırlıyız
+- **Çok kullanıcılı workspace / paylaşım** — doküman sahibi tek kullanıcı
+- Mikroservis mimarisi (tek servis yeterli; kuyruk varlığı mikroservis gerektirmez)
+- Kendi modelini eğitmek / fine-tune (RAG'in tüm amacı bundan kaçınmak)
 
 ## Başarı Tanımı
 
-- [ ] Lokalde kayıt → mülakat → değerlendirme → özet akışı uçtan uca çalışıyor
-- [ ] Soru üretimi, cevap değerlendirme ve özet RabbitMQ üzerinden asenkron işleniyor
-- [ ] LLM hatası DLQ'ya düşüyor, kullanıcı `FAILED` durumu görüp tekrar deneyebiliyor
-- [ ] `main`'e push'ta CI yeşil (birim testleri + Testcontainers ile PostgreSQL ve RabbitMQ)
-- [ ] README'de akışı gösteren GIF, mimari diyagram ve 3 komutluk kurulum var
+- [ ] PDF yükle → arka planda işlensin → `READY` olsun
+- [ ] Soru sor → cevap **yüklediğin dokümandan** gelsin, kaynak gösterilsin
+- [ ] Dokümanda olmayan bir şey sorulunca uydurmasın, "bulamadım" desin
+- [ ] Doküman işleme ve cevap üretimi RabbitMQ üzerinden asenkron
+- [ ] Hata DLQ'ya düşsün, kullanıcı `FAILED` görüp tekrar deneyebilsin
+- [ ] `main`'e push'ta CI yeşil (Testcontainers ile gerçek pgvector + RabbitMQ)
+- [ ] README'de akışı gösteren GIF, mimari diyagram ve 3 komutluk kurulum
