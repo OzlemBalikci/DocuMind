@@ -14,7 +14,7 @@ class BackendApplicationTests {
 
 	@Container
 	@ServiceConnection
-	static PostgreSQLContainer postgres = new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"));
+	static PostgreSQLContainer postgres = new PostgreSQLContainer(DockerImageName.parse("pgvector/pgvector:pg16"));
 
 	@Test
 	void contextLoads() {
