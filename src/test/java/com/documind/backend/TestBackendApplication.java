@@ -1,4 +1,4 @@
-package com.interviewpilot.backend;
+package com.documind.backend;
 
 import org.springframework.boot.SpringApplication;
 

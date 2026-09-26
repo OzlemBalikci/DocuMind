@@ -1,6 +1,6 @@
-package com.interviewpilot.backend;
+package com.documind.backend;
 
-import com.interviewpilot.backend.config.LocalDotEnvLoader;
+import com.documind.backend.config.LocalDotEnvLoader;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication

@@ -1,7 +1,7 @@
 services:
   postgres:
     image: pgvector/pgvector:pg16
-    container_name: interviewpilot-db
+    container_name: documind-db
     restart: unless-stopped
     ports:
       - "${POSTGRES_PORT}:5432"
@@ -12,7 +12,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
-      - interviewpilot_pgdata:/var/lib/postgresql/data
+      - documind_pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
@@ -22,7 +22,7 @@ services:
 
   rabbitmq:
     image: rabbitmq:3-management-alpine
-    container_name: interviewpilot-rabbitmq
+    container_name: documind-rabbitmq
     restart: unless-stopped
     env_file: .env
     environment:
@@ -42,7 +42,7 @@ services:
 
   ollama:
       image: ollama/ollama:latest
-      container_name: interviewpilot-ollama
+      container_name: documind-ollama
       restart: unless-stopped
       ports:
         - "11434:11434"
@@ -52,6 +52,6 @@ services:
 
 
 volumes:
-  interviewpilot_pgdata:
+  documind_pgdata:
   rabbitmq_data:
   ollama_data:

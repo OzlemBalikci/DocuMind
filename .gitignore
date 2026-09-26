@@ -9,6 +9,7 @@
 backend/target/
 target/
 docs/
+data/
 backend/.classpath
 backend/.project
 backend/.settings/

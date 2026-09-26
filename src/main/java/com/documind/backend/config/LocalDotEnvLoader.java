@@ -1,4 +1,4 @@
-package com.interviewpilot.backend.config;
+package com.documind.backend.config;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
