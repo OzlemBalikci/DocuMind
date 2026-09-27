@@ -9,8 +9,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Loads {@code .env} from the working directory before Spring starts.
- * Avoids broken {@code ${POSTGRES_PASSWORD}} resolution when Windows env vars or {@code $} in passwords disagree with Docker.
+ * Loads {@code .env} from the working directory before Spring starts (local profile).
+ * Ensures JDBC password is set when {@code SPRING_DATASOURCE_PASSWORD} is not in the OS environment.
  */
 public final class LocalDotEnvLoader {
 
@@ -26,12 +26,10 @@ public final class LocalDotEnvLoader {
 			return;
 		}
 		Map<String, String> values = parseEnvFile(envFile);
-		applyCredential("spring.datasource.username", first(values, "local.postgres.username", "POSTGRES_USER"),
-				"SPRING_DATASOURCE_USERNAME", "interviewpilot_app");
-		applyCredential("spring.datasource.password", postgresPassword(values), "SPRING_DATASOURCE_PASSWORD", null);
-		applyCredential("spring.rabbitmq.password", first(values, "local.rabbitmq.password", "RABBITMQ_PASSWORD"),
-				"LOCAL_RABBITMQ_PASSWORD", null);
-		applyCredential("app.jwt.secret", first(values, "local.jwt.secret", "JWT_SECRET"), "LOCAL_JWT_SECRET", null);
+		applyIfMissing("spring.datasource.username", first(values, "local.postgres.username", "POSTGRES_USER"), "documind_app");
+		applyIfMissing("spring.datasource.password", postgresPassword(values));
+		applyIfMissing("app.jwt.secret", first(values, "local.jwt.secret", "JWT_SECRET"), null);
+		applyIfMissing("spring.rabbitmq.password", first(values, "local.rabbitmq.password", "RABBITMQ_PASSWORD"), null);
 	}
 
 	private static boolean usesLocalProfile() {
@@ -59,8 +57,12 @@ public final class LocalDotEnvLoader {
 		return null;
 	}
 
-	private static void applyCredential(String propertyKey, String fromFile, String envKey, String defaultValue) {
-		if (isSet(System.getenv(envKey)) || isSet(System.getProperty(propertyKey))) {
+	private static void applyIfMissing(String propertyKey, String fromFile) {
+		applyIfMissing(propertyKey, fromFile, null);
+	}
+
+	private static void applyIfMissing(String propertyKey, String fromFile, String defaultValue) {
+		if (isSet(System.getenv(envKeyFor(propertyKey))) || isSet(System.getProperty(propertyKey))) {
 			return;
 		}
 		String value = fromFile != null && !fromFile.isBlank() ? fromFile : defaultValue;
@@ -68,6 +70,10 @@ public final class LocalDotEnvLoader {
 			return;
 		}
 		System.setProperty(propertyKey, value);
+	}
+
+	private static String envKeyFor(String propertyKey) {
+		return propertyKey.replace('.', '_').toUpperCase();
 	}
 
 	private static boolean isSet(String value) {
@@ -107,11 +113,11 @@ public final class LocalDotEnvLoader {
 				continue;
 			}
 			String key = trimmed.substring(0, eq).strip();
-			String value = trimmed.substring(eq + 1).strip();
+			String val = trimmed.substring(eq + 1).strip();
 			if (key.startsWith("\uFEFF")) {
 				key = key.substring(1);
 			}
-			result.put(key, value);
+			result.put(key, val);
 		}
 		return result;
 	}
