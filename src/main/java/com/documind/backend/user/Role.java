@@ -1,4 +1,6 @@
 package com.documind.backend.user;
 
-public class Role {
+public enum Role {
+    USER,
+    ADMIN
 }

@@ -1,4 +1,9 @@
 package com.documind.backend.document;
 
-public class DocumentStatus {
+public enum  DocumentStatus {
+    PENDING,
+    PARSING,
+    EMBEDDING,
+    READY,
+    FAILED
 }
