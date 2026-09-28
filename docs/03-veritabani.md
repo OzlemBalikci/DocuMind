@@ -231,7 +231,7 @@ CREATE INDEX ix_chunks_embedding_hnsw ON document_chunks
 | `documents` | `Document` | `user` → `@ManyToOne(fetch = LAZY)`. `chunks` → `@OneToMany(mappedBy="document", cascade=ALL, orphanRemoval=true)`. Liste sorgularında chunk'ları **çekme** (yüzlerce satır) |
 | `document_chunks` | `DocumentChunk` | **`embedding` alanını JPA'ya eşlemeye çalışma.** Aşağıya bak |
 | `conversations` | `Conversation` | `messages` → `@OneToMany` + `@OrderBy("createdAt")` |
-| `messages` | `Message` | `content` nullable, `status` enum. `citations` → `@OneToMany` + `@OrderBy("rankOrder")` |
+| `messages` | `Messages` | `content` nullable, `status` enum. `citations` → `@OneToMany` + `@OrderBy("rankOrder")` |
 | `message_citations` | `MessageCitation` | `chunk` → `@ManyToOne(fetch = LAZY)`; cevabı gösterirken `join fetch` ile chunk + document çek |
 | `processing_jobs` | `ProcessingJob` | `documentId` / `messageId` düz `Long` olarak tutulabilir |
 | `llm_usage_logs` | `LlmUsageLog` | İlişki kurmadan düz `Long` kolonlar yeterli; sadece yazılıp sayılıyor |
