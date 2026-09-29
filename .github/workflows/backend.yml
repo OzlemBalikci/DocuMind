@@ -44,10 +44,14 @@ jobs:
           java-version: "21"
           cache: maven
 
+      # CI: avoid mvnw wget to repo.maven.apache.org (only-script wrapper); local dev still uses ./mvnw
+      - name: Set up Maven
+        uses: s4u/setup-maven-action@v1.20.0
+        with:
+          maven-version: 3.9.16
+
       - name: Run tests
-        run: |
-          chmod +x mvnw
-          ./mvnw -B verify
+        run: mvn -B verify
 
       - name: Upload test reports
         if: always()
