@@ -1,4 +1,7 @@
 package com.documind.backend.job;
 
-public class JobType {
+public enum JobType {
+    PARSE_DOCUMENT,
+    EMBED_CHUNKS,
+    ANSWER_QUESTION
 }
