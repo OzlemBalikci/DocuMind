@@ -37,7 +37,7 @@ public class Messages extends BaseEntity {
 	@Builder.Default
 	private MessagesRole role = MessagesRole.USER;
 
-	@Column(columnDefinition = "text")
+	@Column(name = "content", columnDefinition = "text")
 	private String content;
 
 	@Enumerated(EnumType.STRING)

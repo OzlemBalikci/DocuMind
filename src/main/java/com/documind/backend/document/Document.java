@@ -19,7 +19,6 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
-import java.time.OffsetDateTime;
 
 @Entity
 @Table(name = "documents")
@@ -71,7 +70,7 @@ public class Document extends BaseEntity {
 	private String errorMessage;
 
 	@Column(name = "indexed_at")
-	private OffsetDateTime indexedAt;
+	private Instant indexedAt;
 
 	@CreationTimestamp
 	@Column(name = "created_at", nullable = false, updatable = false)
