@@ -44,10 +44,16 @@ jobs:
           java-version: "21"
           cache: maven
 
+      # Must set java-version; action default is 8/17 and breaks release 21 compile
+      - name: Set up Maven
+        uses: s4u/setup-maven-action@v1.20.0
+        with:
+          maven-version: 3.9.16
+          java-version: "21"
+          java-distribution: "temurin"
+
       - name: Run tests
-        run: |
-          chmod +x mvnw
-          ./mvnw -B verify
+        run: mvn -B verify
 
       - name: Upload test reports
         if: always()
