@@ -1,67 +1,87 @@
 package com.documind.backend.usage;
 
 import com.documind.backend.chat.Message;
-import com.documind.backend.common.BaseEntity;
+import com.documind.backend.common.CreatedOnlyEntity;
+import com.documind.backend.common.Texts;
 import com.documind.backend.document.Document;
 import com.documind.backend.job.ProcessingJob;
 import com.documind.backend.user.User;
-import jakarta.persistence.*;
-import lombok.*;
-import org.hibernate.annotations.CreationTimestamp;
-
-import java.time.Instant;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "llm_usage_logs")
 @Getter
-@Setter
-@AllArgsConstructor
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@Builder
-public class LlmUsageLog extends BaseEntity {
+public class LlmUsageLog extends CreatedOnlyEntity {
 
-    @ManyToOne(fetch = FetchType.LAZY,optional = false)
-    @JoinColumn(name = "user_id",nullable = false)
-    private User user;
+	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@JoinColumn(name = "user_id", nullable = false)
+	private User user;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "document_id")
-    private Document document;
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "document_id")
+	private Document document;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "message_id")
-    private Message message;
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "message_id")
+	private Message message;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "job_id")
-    private ProcessingJob processingJob;
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "job_id")
+	private ProcessingJob job;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "operation", nullable = false, length = 30)
-    private LlmOperation operation;
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false, length = 30)
+	private LlmOperation operation;
 
-    @Column(name = "model", nullable = false, length = 100)
-    private String model;
+	@Column(nullable = false, length = 100)
+	private String model;
 
-    @Column(name = "prompt_tokens")
-    private Integer promptTokens;
+	@Column(name = "prompt_tokens")
+	private Integer promptTokens;
 
-    @Column(name = "completion_tokens")
-    private Integer completionTokens;
+	@Column(name = "completion_tokens")
+	private Integer completionTokens;
 
-    @Column(name = "embedding_count")
-    private Integer embeddingCount;
+	@Column(name = "embedding_count")
+	private Integer embeddingCount;
 
-    @Column(name = "latency_ms", nullable = false)
-    private Integer latencyMs;
+	@Column(name = "latency_ms", nullable = false)
+	private Integer latencyMs;
 
-    @Column(name = "success", nullable = false)
-    private boolean success;
+	@Column(nullable = false)
+	private boolean success;
 
-    @Column(name = "error_message", length = 500)
-    private String errorMessage;
+	@Column(name = "error_message", length = 500)
+	private String errorMessage;
 
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt;
+	@Builder
+	private LlmUsageLog(User user, Document document, Message message, ProcessingJob job, LlmOperation operation,
+			String model, Integer promptTokens, Integer completionTokens, Integer embeddingCount, Integer latencyMs,
+			Boolean success, String errorMessage) {
+		this.user = user;
+		this.document = document;
+		this.message = message;
+		this.job = job;
+		this.operation = operation;
+		this.model = model;
+		this.promptTokens = promptTokens;
+		this.completionTokens = completionTokens;
+		this.embeddingCount = embeddingCount;
+		this.latencyMs = latencyMs;
+		this.success = Boolean.TRUE.equals(success);
+		this.errorMessage = Texts.truncate(errorMessage, 500);
+	}
+
 }

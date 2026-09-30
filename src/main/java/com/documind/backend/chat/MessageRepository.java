@@ -19,8 +19,4 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
 			""")
 	Optional<Message> findByIdAndConversation_User_Id(@Param("id") Long id, @Param("userId") Long userId);
 
-	List<Message> findByStatusOrderByCreatedAtAsc(MessageStatus status);
-
-	long countByConversation_Id(Long conversationId);
-
 }
