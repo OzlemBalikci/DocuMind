@@ -11,8 +11,8 @@ import java.math.BigDecimal;
 @Table(name = "message_citations")
 @Getter
 @Setter
-@AllArgsConstructor
-@NoArgsConstructor
+@AllArgsConstructor(access = AccessLevel.PROTECTED)
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Builder
 public class MessageCitation extends BaseEntity {
 

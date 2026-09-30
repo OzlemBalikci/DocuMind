@@ -13,7 +13,7 @@ import java.time.Instant;
 @Table(name = "conversations")
 @Getter
 @Setter
-@NoArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 @Builder
 public class Conversation extends BaseEntity {
