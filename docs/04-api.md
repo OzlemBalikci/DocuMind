@@ -412,7 +412,7 @@ Frontend bunları görünce "Tekrar dene" gösterir (`POST /api/documents/{id}/r
 | `AuthResponse`, `UserResponse` | `AuthResponse`, `User` |
 | `DocumentResponse` | `Document` |
 | `ConversationResponse` / `ConversationDetailResponse` | `Conversation`, `ConversationDetail` |
-| `MessageResponse` | `Messages` (`content: string \| null`) |
+| `MessageResponse` | `Message` (`content: string \| null`) |
 | `CitationResponse` | `Citation` |
 | `PageResponse<T>` | `Page<T>` |
 | `StatsResponse` | `Stats` |

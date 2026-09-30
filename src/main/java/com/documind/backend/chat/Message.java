@@ -26,7 +26,7 @@ import java.time.Instant;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Messages extends BaseEntity {
+public class Message extends BaseEntity {
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "conversation_id", nullable = false)
@@ -35,7 +35,7 @@ public class Messages extends BaseEntity {
 	@Enumerated(EnumType.STRING)
 	@Column(name = "role", nullable = false, length = 20)
 	@Builder.Default
-	private MessagesRole role = MessagesRole.USER;
+	private MessageRole role = MessageRole.USER;
 
 	@Column(name = "content", columnDefinition = "text")
 	private String content;
@@ -43,7 +43,7 @@ public class Messages extends BaseEntity {
 	@Enumerated(EnumType.STRING)
 	@Column(name = "status", nullable = false, length = 20)
 	@Builder.Default
-	private MessagesStatus status = MessagesStatus.DONE;
+	private MessageStatus status = MessageStatus.DONE;
 
 	@Column(name = "model", length = 100)
 	private String model;
