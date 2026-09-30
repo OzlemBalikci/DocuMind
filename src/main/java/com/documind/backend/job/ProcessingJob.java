@@ -1,7 +1,8 @@
 package com.documind.backend.job;
 
 import com.documind.backend.chat.Message;
-import com.documind.backend.common.BaseEntity;
+import com.documind.backend.common.AuditedEntity;
+import com.documind.backend.common.Texts;
 import com.documind.backend.document.Document;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -11,24 +12,17 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
 
 @Entity
 @Table(name = "processing_jobs")
 @Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
-public class ProcessingJob extends BaseEntity {
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class ProcessingJob extends AuditedEntity {
 
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "document_id")
@@ -39,33 +33,62 @@ public class ProcessingJob extends BaseEntity {
 	private Message message;
 
 	@Enumerated(EnumType.STRING)
-	@Column(name = "type", nullable = false, length = 30)
+	@Column(nullable = false, length = 30)
 	private JobType type;
 
 	@Enumerated(EnumType.STRING)
-	@Column(name = "status", nullable = false, length = 20)
-	@Builder.Default
+	@Column(nullable = false, length = 20)
 	private JobStatus status = JobStatus.QUEUED;
 
-	@Column(name = "attempts", nullable = false)
-	@Builder.Default
+	@Column(nullable = false)
 	private Short attempts = 0;
 
 	@Column(name = "error_message", length = 500)
 	private String errorMessage;
-
-	@CreationTimestamp
-	@Column(name = "created_at", nullable = false, updatable = false)
-	private Instant createdAt;
-
-	@UpdateTimestamp
-	@Column(name = "updated_at", nullable = false)
-	private Instant updatedAt;
 
 	@Column(name = "started_at")
 	private Instant startedAt;
 
 	@Column(name = "finished_at")
 	private Instant finishedAt;
+
+	public static ProcessingJob forDocument(JobType type, Document document) {
+		if (type == JobType.ANSWER_QUESTION) {
+			throw new IllegalArgumentException("ANSWER_QUESTION document job olamaz");
+		}
+		ProcessingJob job = new ProcessingJob();
+		job.type = type;
+		job.document = document;
+		return job;
+	}
+
+	public static ProcessingJob answerQuestion(Message message) {
+		ProcessingJob job = new ProcessingJob();
+		job.type = JobType.ANSWER_QUESTION;
+		job.message = message;
+		return job;
+	}
+
+	public void start() {
+		status = JobStatus.RUNNING;
+		startedAt = Instant.now();
+		attempts++;
+	}
+
+	public void done() {
+		status = JobStatus.DONE;
+		finishedAt = Instant.now();
+	}
+
+	public void fail(String reason) {
+		status = JobStatus.FAILED;
+		finishedAt = Instant.now();
+		errorMessage = Texts.truncate(reason, 500);
+	}
+
+	public void requeue() {
+		status = JobStatus.QUEUED;
+		startedAt = null;
+	}
 
 }

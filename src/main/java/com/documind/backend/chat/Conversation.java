@@ -1,38 +1,35 @@
 package com.documind.backend.chat;
 
-import com.documind.backend.common.BaseEntity;
+import com.documind.backend.common.AuditedEntity;
 import com.documind.backend.user.User;
-import jakarta.persistence.*;
-import lombok.*;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
-
-import java.time.Instant;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
 @Table(name = "conversations")
 @Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
-public class Conversation extends BaseEntity {
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class Conversation extends AuditedEntity {
 
-    @ManyToOne(fetch = FetchType.LAZY,optional = false)
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@JoinColumn(name = "user_id", nullable = false)
+	private User user;
 
-    @Column(name = "title", nullable = false, length = 200)
-    private String title;
+	@Setter
+	@Column(nullable = false, length = 200)
+	private String title;
 
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false,updatable = false)
-    private Instant createdAt;
-
-    @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt;
-
-
+	public Conversation(User user, String title) {
+		this.user = user;
+		this.title = title;
+	}
 
 }
