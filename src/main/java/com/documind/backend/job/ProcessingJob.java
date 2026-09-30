@@ -1,6 +1,6 @@
 package com.documind.backend.job;
 
-import com.documind.backend.chat.Messages;
+import com.documind.backend.chat.Message;
 import com.documind.backend.common.BaseEntity;
 import com.documind.backend.document.Document;
 import jakarta.persistence.Column;
@@ -36,7 +36,7 @@ public class ProcessingJob extends BaseEntity {
 
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "message_id")
-	private Messages message;
+	private Message message;
 
 	@Enumerated(EnumType.STRING)
 	@Column(name = "type", nullable = false, length = 30)

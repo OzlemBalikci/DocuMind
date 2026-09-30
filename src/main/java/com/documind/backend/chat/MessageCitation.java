@@ -18,7 +18,7 @@ public class MessageCitation extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY,optional = false)
     @JoinColumn(name = "message_id",nullable = false)
-    private Messages message;
+    private Message message;
 
     @ManyToOne(fetch = FetchType.LAZY,optional = false)
     @JoinColumn(name = "chunk_id", nullable = false)

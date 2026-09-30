@@ -1,6 +1,6 @@
 package com.documind.backend.usage;
 
-import com.documind.backend.chat.Messages;
+import com.documind.backend.chat.Message;
 import com.documind.backend.common.BaseEntity;
 import com.documind.backend.document.Document;
 import com.documind.backend.job.ProcessingJob;
@@ -30,7 +30,7 @@ public class LlmUsageLog extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "message_id")
-    private Messages message;
+    private Message message;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "job_id")

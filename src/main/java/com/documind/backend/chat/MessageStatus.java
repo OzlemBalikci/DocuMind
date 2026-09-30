@@ -1,6 +1,6 @@
 package com.documind.backend.chat;
 
-public enum MessagesStatus {
+public enum MessageStatus {
     PENDING,
     RUNNING,
     DONE,
