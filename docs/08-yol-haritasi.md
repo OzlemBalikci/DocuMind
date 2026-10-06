@@ -22,7 +22,7 @@ Her blok sonunda: `./mvnw verify` → commit → push → PR → merge.
 
 | Dosya | Değişiklik |
 |---|---|
-| `docker-compose.yml` | Postgres imajı → **`pgvector/pgvector:pg16`** |
+| `docker-compose.yml` | Postgres → **`pgvector/pgvector:pg16`**; **Redis 7** servisi |
 | `pom.xml` | Ekle: `spring-ai-starter-vector-store-pgvector` (opsiyonel), `spring-ai-pdf-document-reader`, `spring-boot-starter-web` multipart zaten var |
 | `.env` / `.env.example` | `EMBEDDING_MODEL`, `RAG_*`, `STORAGE_PATH`, `AI_*` (eski `LLM_*` yerine) |
 | `application-local.properties` | `spring.ai.ollama.embedding.options.model`, `num-ctx=8192`, **`format=json` KALDIR**, multipart sınırları, `app.rag.*`, `app.storage.*` |
@@ -40,8 +40,8 @@ Her blok sonunda: `./mvnw verify` → commit → push → PR → merge.
 
 | Saat | İş | Çıktı | Doküman |
 |---|---|---|---|
-| 09:00–10:45 | Flyway `V1` (pgvector + 8 tablo), entity'ler + repository'ler. `embedding` alanı entity'de **yok** | `ddl-auto=validate` hatasız, uygulama açılıyor | [Veritabanı](03-veritabani.md) |
-| 10:45–12:15 | Auth: `register`, `login`, `me`, `JwtService`, JWT filtresi, `SecurityConfig`, CORS, `GlobalExceptionHandler` + `ApiError`, 401 entry point | HTTP client ile token alınıyor | [API → Auth](04-api.md#auth) |
+| 09:00–10:30 | Flyway `V1` + entity/repository (tamamlandı). `V2` refresh_tokens + Redis compose/pom | `validate` + V2 migration | [Veritabanı](03-veritabani.md), [Güvenlik](09-guvenlik-redis.md) |
+| 10:30–13:00 | Auth: access JWT + refresh (rotation), Redis blacklist + login rate limit, filter, `SecurityConfig`, `register`/`login`/`refresh`/`logout`/`me` | Postman ile tam auth akışı | [API → Auth](04-api.md#auth), [Güvenlik](09-guvenlik-redis.md) |
 | 12:15–13:15 | Öğle arası | | |
 | 13:15–14:30 | Dosya yükleme: `DocumentController` + `DocumentStorageService`. MIME doğrulama, boyut sınırı, SHA-256, `409` çakışma, diske yazma, `documents` kaydı | `POST /api/documents` → 201/202, dosya diskte | [API → Documents](04-api.md#documents) |
 | 14:30–16:00 | `DocumentParser` (PDF + TXT/MD, sayfa numarasıyla) + `ChunkingService` (`TokenTextSplitter`, overlap). **Senkron** çağır: yükleme isteğinde parse + chunk | `document_chunks` dolu, `chunkCount` doğru, sayfa numaraları var | [LLM → Chunk'lama](05-llm-entegrasyonu.md#2-chunklama--projenin-en-önemli-kararı) |
@@ -56,7 +56,7 @@ Her blok sonunda: `./mvnw verify` → commit → push → PR → merge.
 
 > Neden mock embedding deterministik olmalı? Aynı metin her çağrıda aynı vektörü vermezse vektör arama testleri rastgele davranır. Hash tabanlı üretim bunu garantiler.
 
-**PR'lar:** `feat(backend): pgvector schema and entities`, `feat(backend): jwt authentication`, `feat(backend): document upload and parsing`, `feat(backend): mock rag pipeline`
+**PR'lar:** `feat(backend): pgvector schema and entities`, `chore: add redis to compose`, `feat(backend): access refresh jwt and redis auth`, `feat(backend): document upload and parsing`, `feat(backend): mock rag pipeline`
 
 ---
 

@@ -9,6 +9,7 @@ Bu projenin canlı ortamı yok ([Proje Fikri → Kapsam Dışı](01-proje-fikri.
 - Her PR'da backend ve frontend testleri otomatik koşsun, kırmızıysa merge edilemesin.
 - Testler **Ollama olmadan** koşsun: CI'da `AI_PROVIDER=mock`.
 - Testcontainers ile gerçek **pgvector** ve **RabbitMQ** ayağa kalksın.
+- **Redis:** entegrasyon testlerinde Testcontainers Redis veya `app.redis.enabled=false` + no-op servisler (CI'da her test Redis istemez).
 
 ## Pipeline Akışı
 

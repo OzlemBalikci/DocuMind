@@ -1,7 +1,12 @@
 # 3. Veritabanı
 
 PostgreSQL 16 + **pgvector** (lokalde Docker). Şemayı **sadece Flyway** yönetir; Hibernate `ddl-auto: validate` modunda çalışır.
-Referans şema: [`docs/sql/V1__init_schema.sql`](sql/V1__init_schema.sql). Dosya `src/main/resources/db/migration/` altına gider.
+Referans şemalar:
+
+- [`docs/sql/V1__init_schema.sql`](sql/V1__init_schema.sql) — çekirdek RAG tabloları
+- [`docs/sql/V2__refresh_tokens.sql`](sql/V2__refresh_tokens.sql) — refresh token (auth)
+
+Dosyalar `src/main/resources/db/migration/` altına gider (`V1`, sonra `V2`).
 
 > **Docker imajı değişmeli.** `postgres:16-alpine` pgvector içermez; migration `CREATE EXTENSION vector` satırında düşer. `docker-compose.yml`'da imajı **`pgvector/pgvector:pg16`** yap.
 
@@ -13,6 +18,7 @@ Referans şema: [`docs/sql/V1__init_schema.sql`](sql/V1__init_schema.sql). Dosya
 erDiagram
     users ||--o{ documents : "sahibi"
     users ||--o{ conversations : "sahibi"
+    users ||--o{ refresh_tokens : "oturum"
     users ||--o{ llm_usage_logs : "kullanır"
     documents ||--o{ document_chunks : "bölünür"
     documents ||--o{ processing_jobs : "tetikler"
@@ -29,6 +35,19 @@ erDiagram
         varchar role "USER | ADMIN"
         timestamptz created_at
         timestamptz updated_at
+    }
+
+    refresh_tokens {
+        bigint id PK
+        bigint user_id FK
+        uuid family_id "rotation ailesi"
+        char token_hash UK "SHA-256 hex"
+        timestamptz expires_at
+        timestamptz revoked_at "nullable"
+        bigint replaced_by_id FK "nullable, rotation zinciri"
+        varchar user_agent "nullable"
+        inet ip_address "nullable"
+        timestamptz created_at
     }
 
     documents {
@@ -130,6 +149,7 @@ erDiagram
 
 | İlişki | Tür | Silme davranışı | Açıklama |
 |---|---|---|---|
+| `users` → `refresh_tokens` | 1 – N | `CASCADE` | Refresh oturumları (hash); ham token Redis'te değil |
 | `users` → `documents` | 1 – N | `CASCADE` | Kullanıcının dokümanları |
 | `documents` → `document_chunks` | 1 – 0..N | `CASCADE` | Chunk'lar parse aşamasında oluşur; `PENDING` dokümanın chunk'ı yoktur |
 | `documents` → `processing_jobs` | 1 – N | `CASCADE` | Parse ve embed işleri, tekrar denemeler dahil |
@@ -148,6 +168,15 @@ erDiagram
 ### `users`
 - E-posta benzersizliği `LOWER(email)` üzerinde fonksiyonel indeksle. Servis katmanında da kaydetmeden önce küçük harfe çevir.
 - `role` DB'de `VARCHAR` + `CHECK`, JPA'da `EnumType.STRING`. Native enum yerine bu tercih edildi çünkü yeni değer eklemek migration'da daha kolay.
+
+### `refresh_tokens` (V2)
+- **Access JWT stateless** kalır; uzun oturum ve iptal için refresh burada.
+- `token_hash` = SHA-256(refreshToken) hex; UNIQUE. Ham token DB'de tutulmaz.
+- **`family_id`:** Login/register'da yeni UUID; her rotation'da aynı family kalır — aynı aileden **iptal edilmiş** token tekrar gelirse çalıntı şüphesi (tüm family revoke).
+- **`replaced_by_id`:** Rotation'da eski satır `revoked_at` + yeni satırın `id`; audit ve zincir takibi.
+- **`user_agent` / `ip_address`:** Oturum listesi ve güvenlik (opsiyonel UI; login'de kaydet).
+- `ck_refresh_tokens_expiry`: `expires_at` uygulama tarafında `created_at + 7 gün` ile uyumlu olmalı.
+- Access blacklist (logout): Redis `jti` — [Güvenlik ve Redis](09-guvenlik-redis.md).
 
 ### `documents`
 - Dosyanın **kendisi veritabanında değil**, diskte (`storage_path`). PostgreSQL'e 20 MB'lık PDF'ler yazmak yedekleme ve bellek açısından kötü; blob yerine dosya sistemi doğru araç. `storage_path` göreli tutulur ki klasörü taşıyabilsin.
