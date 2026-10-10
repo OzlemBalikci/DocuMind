@@ -12,6 +12,7 @@ import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.ColumnTransformer;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -46,6 +47,7 @@ public class RefreshToken extends CreatedOnlyEntity {
 	private String userAgent;
 
 	@Column(name = "ip_address", columnDefinition = "inet")
+	@ColumnTransformer(write = "?::inet")
 	private String ipAddress;
 
 	public static RefreshToken create(User user, UUID familyId, String tokenHash, Instant expiresAt, String userAgent,
