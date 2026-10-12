@@ -1,4 +1,12 @@
 package com.documind.backend.auth.dto;
 
-public class AuthResponse {
-}
+
+import java.time.Instant;
+
+public record AuthResponse(
+        String accessToken,
+        Instant accessExpiresAt,
+        String refreshToken,
+        Instant refreshExpiredAt,
+        UserResponse user
+) { }

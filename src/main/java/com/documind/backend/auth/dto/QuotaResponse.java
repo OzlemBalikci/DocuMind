@@ -1,4 +1,10 @@
 package com.documind.backend.auth.dto;
 
-public class QuotaResponse {
-}
+import java.time.Instant;
+
+public record QuotaResponse(
+        int dailyLimit,
+        int usedToday,
+        int remaining,
+        Instant resetsAt
+) { }
