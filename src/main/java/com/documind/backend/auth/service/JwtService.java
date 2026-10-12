@@ -18,7 +18,7 @@ import java.util.Date;
 import java.util.UUID;
 
 @Service
-public class JwtService{
+public class JwtService {
 
     private static final int MIN_SECRET_LENGTH = 32;
     private static final String ISSUER = "documind";
@@ -64,7 +64,7 @@ public class JwtService{
 
     public AccessToken issueAccess(Long userId) {
         if (userId == null) {
-            throw new IllegalArgumentException("userId can not be null");
+            throw new IllegalArgumentException("userId must not be null");
         }
         Instant now = clock.instant();
         Instant expiresAt = now.plus(accessTtl);
@@ -85,7 +85,7 @@ public class JwtService{
 
     public AccessClaims parseAccess(String token) {
         if (token == null || token.isBlank()) {
-            throw new JwtException("Token is null");
+            throw new JwtException("Token must not be blank");
         }
 
         Claims claims = accessTokenParser
@@ -93,12 +93,23 @@ public class JwtService{
                 .getPayload();
 
         if (!TYPE_ACCESS.equals(claims.get(CLAIM_TYPE, String.class))) {
-            throw new JwtException("Not the access token");
+            throw new JwtException("Not an access token");
         }
 
         return new AccessClaims(
-                Long.valueOf(claims.getSubject()),
+                parseUserId(claims.getSubject()),
                 claims.getId(),
                 claims.getExpiration().toInstant());
+    }
+
+    private static Long parseUserId(String subject) {
+        if (subject == null || subject.isBlank()) {
+            throw new JwtException("Token subject must not be blank");
+        }
+        try {
+            return Long.valueOf(subject);
+        } catch (NumberFormatException ex) {
+            throw new JwtException("Token subject is not a valid user id", ex);
+        }
     }
 }
