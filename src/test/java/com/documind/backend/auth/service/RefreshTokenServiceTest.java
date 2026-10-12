@@ -8,15 +8,16 @@ import com.documind.backend.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.persistence.EntityManager;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -55,7 +56,7 @@ class RefreshTokenServiceTest {
     UserRepository userRepository;
 
     @Autowired
-    JdbcTemplate jdbcTemplate;
+    EntityManager entityManager;
 
     User user;
 
@@ -136,10 +137,18 @@ class RefreshTokenServiceTest {
     void rotate_expiredToken_throwsAndRevokesRow() {
         RefreshTokenService.IssuedRefresh issued = refreshTokenService.issue(user, "JUnit", "127.0.0.1");
         String hash = RefreshTokenService.hash(issued.rawToken());
-        jdbcTemplate.update(
-                "UPDATE refresh_tokens SET expires_at = ? WHERE token_hash = ?",
-                Instant.now().minus(1, ChronoUnit.DAYS),
-                hash);
+        Long id = refreshTokenRepository.findByTokenHash(hash).orElseThrow().getId();
+
+        Instant createdAt = Instant.now().minus(3, ChronoUnit.DAYS);
+        Instant expiresAt = Instant.now().minus(1, ChronoUnit.DAYS);
+        int updated = entityManager.createNativeQuery(
+                        "UPDATE refresh_tokens SET created_at = :createdAt, expires_at = :expiresAt WHERE id = :id")
+                .setParameter("createdAt", Timestamp.from(createdAt))
+                .setParameter("expiresAt", Timestamp.from(expiresAt))
+                .setParameter("id", id)
+                .executeUpdate();
+        assertEquals(1, updated);
+        entityManager.clear();
 
         assertThrows(InvalidRefreshTokenException.class,
                 () -> refreshTokenService.rotate(issued.rawToken(), "JUnit", "127.0.0.1"));
