@@ -1,8 +1,7 @@
 package com.documind.backend.common.exception;
 
-public class InvalidRefreshTokenException extends RuntimeException {
-
+public class InvalidRefreshTokenException extends ApiException{
     public InvalidRefreshTokenException() {
-        super("Invalid or expired refresh token.");
+        super(ErrorCode.INVALID_REFRESH_TOKEN);
     }
 }
