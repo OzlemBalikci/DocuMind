@@ -2,7 +2,9 @@
 
 - Base URL: `http://localhost:8087/api`
 - Format: JSON, tarih alanları ISO-8601 UTC (`2026-09-26T11:00:00Z`)
-- Kimlik doğrulama: `Authorization: Bearer <jwt>` (`/api/auth/register`, `/api/auth/login`, `/actuator/health` hariç hepsi korumalı)
+- Kimlik doğrulama: `Authorization: Bearer <accessToken>` — yalnızca **access JWT** (refresh Bearer ile gönderilmez).
+- Public: `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/refresh`, `POST /api/auth/logout`, `GET /actuator/health`. Diğer `/api/**` korumalı.
+- Auth mimarisi: [Güvenlik ve Redis](09-guvenlik-redis.md).
 
 **Asenkron sözleşme.** İki uzun işlem — doküman indeksleme ve soru cevaplama — kuyruğa alınır ve `202 Accepted` döner. İstemci sonucu **polling** ile öğrenir. Sebep: 40 sayfalık bir PDF'in indekslenmesi dakikalar, lokal modelle bir cevap 20–60 saniye sürer.
 
@@ -10,8 +12,10 @@
 
 | Metot | Yol | Açıklama | Yanıt | AI |
 |---|---|---|---|---|
-| POST | `/api/auth/register` | Kayıt ol, token al | `201` | – |
-| POST | `/api/auth/login` | Giriş yap, token al | `200` | – |
+| POST | `/api/auth/register` | Kayıt ol, token çifti al | `201` | – |
+| POST | `/api/auth/login` | Giriş yap, token çifti al | `200` | – |
+| POST | `/api/auth/refresh` | Yeni access (+ rotation ile yeni refresh) | `200` | – |
+| POST | `/api/auth/logout` | Refresh iptal + access blacklist | `204` | – |
 | GET | `/api/auth/me` | Kullanıcı + kalan günlük kota | `200` | – |
 | POST | `/api/documents` | Doküman yükle, indekslemeyi kuyruğa al | **`202`** | kuyrukta |
 | GET | `/api/documents?page=0&size=10` | Dokümanlarım (sayfalı) | `200` | – |
@@ -42,13 +46,15 @@ Validasyon: `email` geçerli e-posta, `password` 8–72 karakter (BCrypt 72 byte
 
 ```json
 {
-  "token": "eyJhbGciOiJIUzI1NiJ9...",
-  "expiresAt": "2026-09-27T11:00:00Z",
+  "accessToken": "eyJhbGciOiJIUzI1NiJ9...",
+  "accessExpiresAt": "2026-09-26T11:15:00Z",
+  "refreshToken": "k7x9...",
+  "refreshExpiresAt": "2026-10-03T11:00:00Z",
   "user": { "id": 1, "email": "ayse@example.com", "fullName": "Ayşe Yılmaz", "role": "USER" }
 }
 ```
 
-Hatalar: `400 VALIDATION_ERROR`, `409 EMAIL_ALREADY_EXISTS`
+Hatalar: `400 VALIDATION_ERROR`, `409 EMAIL_ALREADY_EXISTS`, `429 RATE_LIMIT_EXCEEDED` (login/register rate limit)
 
 ### `POST /api/auth/login`
 
@@ -56,7 +62,30 @@ Hatalar: `400 VALIDATION_ERROR`, `409 EMAIL_ALREADY_EXISTS`
 { "email": "ayse@example.com", "password": "GucluSifre123" }
 ```
 
-`200 OK` → register ile aynı gövde. Hata: `401 INVALID_CREDENTIALS` (e-posta mı şifre mi yanlış, söyleme).
+`200 OK` → register ile aynı gövde (`accessToken` + `refreshToken` + `user`). Hata: `401 INVALID_CREDENTIALS` (e-posta mı şifre mi yanlış, söyleme).
+
+### `POST /api/auth/refresh`
+
+```json
+{ "refreshToken": "k7x9..." }
+```
+
+`200 OK` → login ile aynı token çifti (rotation: eski refresh geçersiz).
+
+Hatalar: `401 INVALID_REFRESH_TOKEN`, `429 RATE_LIMIT_EXCEEDED`
+
+### `POST /api/auth/logout`
+
+İstemci elindeki access ve refresh'i gönderir (access blacklist için):
+
+```json
+{
+  "refreshToken": "k7x9...",
+  "accessToken": "eyJhbGciOiJIUzI1NiJ9..."
+}
+```
+
+`204 No Content`. Refresh `revoked_at` ile iptal; access `jti` Redis blacklist'e (TTL = kalan süre).
 
 ### `GET /api/auth/me`
 

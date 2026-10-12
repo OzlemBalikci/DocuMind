@@ -8,6 +8,7 @@ flowchart LR
     FE -->|REST + JWT| BE[Spring Boot API]
     BE -->|dosya| FS[(Disk<br/>./data/documents)]
     BE -->|JDBC / Flyway| DB[(PostgreSQL + pgvector<br/>Docker)]
+    BE -->|cache / blacklist / rate limit| RD[(Redis<br/>Docker)]
     BE -->|publish| MQ[[RabbitMQ<br/>Docker]]
     MQ -->|consume| W[Worker<br/>@RabbitListener]
     W -->|parse| PDF[PDFBox / Spring AI Reader]
@@ -17,7 +18,9 @@ flowchart LR
     GH[GitHub Actions] -->|test| BE
 ```
 
-Tek bir Spring Boot servisi (modüler monolit). Worker ayrı bir process değil, aynı uygulamanın içindeki bir `@RabbitListener`. Her şey lokal: PostgreSQL+pgvector ve RabbitMQ Docker'da, Ollama işletim sisteminde, yüklenen dosyalar diskte.
+Tek bir Spring Boot servisi (modüler monolit). Worker ayrı bir process değil, aynı uygulamanın içindeki bir `@RabbitListener`. Her şey lokal: PostgreSQL+pgvector, RabbitMQ ve **Redis** Docker'da, Ollama işletim sisteminde, yüklenen dosyalar diskte.
+
+Kimlik doğrulama: **access JWT (kısa)** + **refresh token (DB hash, rotation)**; Redis ile access iptali ve login rate limit. Detay: [Güvenlik ve Redis](09-guvenlik-redis.md).
 
 ## RAG Nedir, Burada Nasıl Çalışıyor?
 
@@ -55,8 +58,9 @@ Kritik nokta: LLM dokümanları "bilmiyor". Her cevapta ona ilgili metin parçal
 | Mesajlaşma | **RabbitMQ** + Spring AMQP | Uzun süren indeksleme işlerini HTTP'den ayırmak; DLQ ve retry yerleşik |
 | Veri erişimi | Spring Data JPA + JdbcTemplate | Vektör sorguları native SQL ile |
 | Migration | Flyway | `CREATE EXTENSION vector` dahil şema versiyonlama |
-| Güvenlik | Spring Security + JWT (jjwt 0.12+) | Stateless API |
-| Test | JUnit 5, Mockito, Testcontainers, MockMvc | Gerçek pgvector ve RabbitMQ ile entegrasyon testi |
+| Güvenlik | Spring Security + access JWT (jjwt 0.12+) + refresh (Postgres) | Stateless API; refresh rotation |
+| Önbellek / yardımcı | **Redis 7** + Spring Data Redis | Blacklist, rate limit, `@Cacheable` (stats); iş kuyruğu değil |
+| Test | JUnit 5, Mockito, Testcontainers, MockMvc | pgvector, RabbitMQ; Redis opsiyonel veya Testcontainers |
 
 **Neden pgvector, neden Qdrant/Chroma değil?** Zaten PostgreSQL'e ihtiyacın var (kullanıcı, doküman, konuşma). pgvector ile chunk'lar ve embedding'ler aynı veritabanında, aynı transaction'da ve `document_id` üzerinden **foreign key** ile duruyor. Ayrı bir vektör veritabanı kullansan: ikinci bir servis, ikinci bir bağlantı havuzu ve en kötüsü **iki veri deposu arasında tutarlılık problemi** (doküman silindi ama vektörler kaldı). Qdrant milyonlarca vektörde pgvector'dan hızlıdır; bu ölçekte o fark yok, tutarlılık maliyeti ise gerçek. Mülakatta "neden Qdrant değil?" sorusunun cevabı bu.
 
@@ -84,16 +88,19 @@ src/main/java/com/documind/backend/
 ├── BackendApplication.java
 ├── config/
 │   ├── SecurityConfig.java          # filter chain, CORS, public endpoint'ler
+│   ├── RedisConfig.java             # RedisTemplate, CacheManager
 │   ├── CorsProperties.java          # app.cors.allowed-origins
 │   ├── StorageProperties.java       # app.storage.path, max-file-size
 │   ├── RagProperties.java           # app.rag.* (chunk, top-k, eşik)
 │   └── AiConfig.java                # ChatClient bean'i, ollama/mock seçimi
 ├── auth/
-│   ├── AuthController.java          # /api/auth/register, /login, /me
+│   ├── AuthController.java          # register, login, refresh, logout, me
 │   ├── AuthService.java
-│   ├── JwtService.java
+│   ├── JwtService.java              # yalnızca access JWT
+│   ├── RefreshToken.java, RefreshTokenRepository.java, RefreshTokenService.java
+│   ├── TokenBlacklistService.java, LoginRateLimiter.java
 │   ├── JwtAuthenticationFilter.java
-│   └── dto/ (RegisterRequest, LoginRequest, AuthResponse, UserResponse)
+│   └── dto/ (RegisterRequest, LoginRequest, AuthResponse, RefreshRequest, ...)
 ├── user/
 │   ├── User.java, UserRepository.java, Role.java
 ├── document/
@@ -145,7 +152,7 @@ src/main/resources/
 ├── application-local.properties
 ├── prompts/
 │   └── rag-answer.st                # sistem prompt'u
-└── db/migration/V1__init_schema.sql
+└── db/migration/V1__init_schema.sql, V2__refresh_tokens.sql
 ```
 
 > Paket kökü `com.interviewpilot.backend` → `com.documind.backend` yeniden adlandırması IDE'de 5 dakikalık bir refactor. Zorunlu değil ama repo adıyla birlikte değiştirmek portfolyoda daha tutarlı görünür.
