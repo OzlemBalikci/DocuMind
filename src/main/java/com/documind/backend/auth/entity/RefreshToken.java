@@ -53,7 +53,7 @@ public class RefreshToken extends CreatedOnlyEntity {
 	public static RefreshToken create(User user, UUID familyId, String tokenHash, Instant expiresAt, String userAgent,
 			String ipAddress) {
 		if (expiresAt == null || !expiresAt.isAfter(Instant.now())) {
-			throw new IllegalArgumentException("expires_at gelecekte olmalı");
+			throw new IllegalArgumentException("The expiration date has passed.");
 		}
 		RefreshToken token = new RefreshToken();
 		token.user = user;
@@ -77,7 +77,7 @@ public class RefreshToken extends CreatedOnlyEntity {
 
 	public void revokeAsReplacedBy(RefreshToken successor) {
 		if (successor == null) {
-			throw new IllegalArgumentException("successor boş olamaz");
+			throw new IllegalArgumentException("successor can not be null");
 		}
 		revoke();
 		replacedBy = successor;

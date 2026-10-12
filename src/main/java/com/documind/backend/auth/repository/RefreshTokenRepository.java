@@ -10,6 +10,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long> {
+    Optional<RefreshToken> findByTokenHash(String tokenHash);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<RefreshToken> findLockedByTokenHash(String tokenHash);
 

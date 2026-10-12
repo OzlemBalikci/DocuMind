@@ -5,9 +5,9 @@ import com.documind.backend.auth.repository.RefreshTokenRepository;
 import com.documind.backend.common.exception.InvalidRefreshTokenException;
 import com.documind.backend.config.JwtProperties;
 import com.documind.backend.user.entity.User;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 
 import java.nio.charset.StandardCharsets;
@@ -20,8 +20,6 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.UUID;
-
-import static java.util.Objects.hash;
 
 
 @Service
@@ -51,7 +49,7 @@ public class RefreshTokenService {
         return create(user, UUID.randomUUID(), userAgent, ipAddress).issued();
     }
 
-    @Transactional(onRollbackFor = InvalidRefreshTokenException.class)
+    @Transactional(noRollbackFor = InvalidRefreshTokenException.class)
     public RotatedRefresh rotate(String rawToken, String userAgent, String ipAddress) {
         RefreshToken current = repository.findLockedByTokenHash(hash(requireToken(rawToken)))
                 .orElseThrow(InvalidRefreshTokenException::new);
