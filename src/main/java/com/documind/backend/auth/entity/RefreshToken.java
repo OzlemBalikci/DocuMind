@@ -13,6 +13,8 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.ColumnTransformer;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -30,6 +32,7 @@ public class RefreshToken extends CreatedOnlyEntity {
 	@Column(name = "family_id", nullable = false)
 	private UUID familyId;
 
+	@JdbcTypeCode(SqlTypes.CHAR)
 	@Column(name = "token_hash", nullable = false, length = 64)
 	private String tokenHash;
 
