@@ -12,6 +12,7 @@ import jakarta.persistence.EntityManager;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -57,6 +58,9 @@ class RefreshTokenServiceTest {
 
     @Autowired
     EntityManager entityManager;
+
+    @Autowired
+    TransactionTemplate transactionTemplate;
 
     User user;
 
@@ -141,13 +145,15 @@ class RefreshTokenServiceTest {
 
         Instant createdAt = Instant.now().minus(3, ChronoUnit.DAYS);
         Instant expiresAt = Instant.now().minus(1, ChronoUnit.DAYS);
-        int updated = entityManager.createNativeQuery(
-                        "UPDATE refresh_tokens SET created_at = :createdAt, expires_at = :expiresAt WHERE id = :id")
-                .setParameter("createdAt", Timestamp.from(createdAt))
-                .setParameter("expiresAt", Timestamp.from(expiresAt))
-                .setParameter("id", id)
-                .executeUpdate();
-        assertEquals(1, updated);
+        transactionTemplate.executeWithoutResult(status -> {
+            int updated = entityManager.createNativeQuery(
+                            "UPDATE refresh_tokens SET created_at = :createdAt, expires_at = :expiresAt WHERE id = :id")
+                    .setParameter("createdAt", Timestamp.from(createdAt))
+                    .setParameter("expiresAt", Timestamp.from(expiresAt))
+                    .setParameter("id", id)
+                    .executeUpdate();
+            assertEquals(1, updated);
+        });
         entityManager.clear();
 
         assertThrows(InvalidRefreshTokenException.class,
