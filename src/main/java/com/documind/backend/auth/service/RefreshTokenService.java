@@ -6,9 +6,9 @@ import com.documind.backend.common.exception.InvalidRefreshTokenException;
 import com.documind.backend.config.JwtProperties;
 import com.documind.backend.user.entity.User;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -21,27 +21,25 @@ import java.util.Base64;
 import java.util.HexFormat;
 import java.util.UUID;
 
-
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class RefreshTokenService {
 
     private static final int TOKEN_BYTES = 32;
     private static final SecureRandom RANDOM = new SecureRandom();
+
     private final RefreshTokenRepository repository;
     private final JwtProperties properties;
     private final Clock clock;
 
     public record IssuedRefresh(String rawToken, Instant expiresAt) {
-
     }
 
     public record RotatedRefresh(User user, IssuedRefresh refresh) {
-
     }
 
-    public record Created(RefreshToken entity, IssuedRefresh issued) {
-
+    private record Created(RefreshToken entity, IssuedRefresh issued) {
     }
 
     @Transactional
@@ -51,21 +49,33 @@ public class RefreshTokenService {
 
     @Transactional(noRollbackFor = InvalidRefreshTokenException.class)
     public RotatedRefresh rotate(String rawToken, String userAgent, String ipAddress) {
+        Instant now = clock.instant();
+
         RefreshToken current = repository.findLockedByTokenHash(hash(requireToken(rawToken)))
                 .orElseThrow(InvalidRefreshTokenException::new);
 
         if (current.getRevokedAt() != null) {
-            revokeFamily(current.getFamilyId());
+            int revoked = revokeFamily(current.getFamilyId(), now);
+            log.warn("Refresh token reuse detected: familyId={}, revokedTokens={}", current.getFamilyId(), revoked);
             throw new InvalidRefreshTokenException();
         }
-        if (!current.getExpiresAt().isAfter(clock.instant())){
-            current.revoke();
+        if (!current.isActive(now)) {
+            current.revoke(now);
             throw new InvalidRefreshTokenException();
         }
 
         Created next = create(current.getUser(), current.getFamilyId(), userAgent, ipAddress);
-        current.revokeAsReplacedBy(next.entity());
+        current.revokeAsReplacedBy(next.entity(), now);
         return new RotatedRefresh(current.getUser(), next.issued());
+    }
+
+    private Created create(User user, UUID familyId, String userAgent, String ipAddress) {
+        Instant now = clock.instant();
+        String raw = generateRawToken();
+        Instant expiresAt = now.plus(Duration.ofDays(properties.getRefreshExpirationDays()));
+        RefreshToken entity = repository.save(
+                RefreshToken.create(user, familyId, hash(raw), expiresAt, userAgent, ipAddress, now));
+        return new Created(entity, new IssuedRefresh(raw, expiresAt));
     }
 
     @Transactional
@@ -73,24 +83,17 @@ public class RefreshTokenService {
         if (rawToken == null || rawToken.isBlank()) {
             return;
         }
-        repository.findLockedByTokenHash(hash(rawToken)).ifPresent(RefreshToken::revoke);
+        Instant now = clock.instant();
+        repository.findLockedByTokenHash(hash(rawToken)).ifPresent(token -> token.revoke(now));
     }
 
     @Transactional
     public void revokeAllForUser(Long userId) {
-        repository.findByUserIdAndRevokedAtIsNull(userId).forEach(RefreshToken::revoke);
+        repository.revokeAllActiveForUser(userId, clock.instant());
     }
 
-    private void revokeFamily(UUID familyId) {
-        repository.findByFamilyIdAndRevokedAtIsNull(familyId).forEach(RefreshToken::revoke);
-    }
-
-    private Created create(User user, UUID familyId, String userAgent, String ipAddress) {
-        String raw = generateRawToken();
-        Instant expiresAt = clock.instant().plus(Duration.ofDays(properties.getRefreshExpirationDays()));
-        RefreshToken entity = repository.save(
-                RefreshToken.create(user, familyId, hash(raw), expiresAt, userAgent, ipAddress));
-        return new Created(entity, new IssuedRefresh(raw, expiresAt));
+    private int revokeFamily(UUID familyId, Instant now) {
+        return repository.revokeFamily(familyId, now);
     }
 
     private static String requireToken(String rawToken) {
@@ -111,7 +114,7 @@ public class RefreshTokenService {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             return HexFormat.of().formatHex(digest.digest(rawToken.getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 is not supported.", e);
+            throw new IllegalStateException("SHA-256 is not supported", e);
         }
     }
 }

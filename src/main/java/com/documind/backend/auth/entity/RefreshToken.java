@@ -54,9 +54,12 @@ public class RefreshToken extends CreatedOnlyEntity {
 	private String ipAddress;
 
 	public static RefreshToken create(User user, UUID familyId, String tokenHash, Instant expiresAt, String userAgent,
-			String ipAddress) {
-		if (expiresAt == null || !expiresAt.isAfter(Instant.now())) {
-			throw new IllegalArgumentException("The expiration date has passed.");
+			String ipAddress, Instant now) {
+		if (now == null) {
+			throw new IllegalArgumentException("now must not be null");
+		}
+		if (expiresAt == null || !expiresAt.isAfter(now)) {
+			throw new IllegalArgumentException("expiresAt must be in the future");
 		}
 		RefreshToken token = new RefreshToken();
 		token.user = user;
@@ -68,22 +71,24 @@ public class RefreshToken extends CreatedOnlyEntity {
 		return token;
 	}
 
-	public boolean isActive() {
-		return revokedAt == null && expiresAt.isAfter(Instant.now());
+	public boolean isActive(Instant now) {
+		return revokedAt == null && expiresAt.isAfter(now);
 	}
 
-	public void revoke() {
+	public void revoke(Instant now) {
 		if (revokedAt == null) {
-			revokedAt = Instant.now();
+			revokedAt = now;
 		}
 	}
 
-	public void revokeAsReplacedBy(RefreshToken successor) {
+	public void revokeAsReplacedBy(RefreshToken successor, Instant now) {
 		if (successor == null) {
-			throw new IllegalArgumentException("successor can not be null");
+			throw new IllegalArgumentException("successor must not be null");
 		}
-		revoke();
-		replacedBy = successor;
+		revoke(now);
+		if (replacedBy == null) {
+			replacedBy = successor;
+		}
 	}
 
 }
