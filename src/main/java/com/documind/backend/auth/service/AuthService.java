@@ -94,8 +94,10 @@ public class AuthService {
 			JwtService.AccessToken access,
 			RefreshTokenService.IssuedRefresh refresh) {
 		return new AuthResponse(
+				AuthResponse.TOKEN_TYPE_BEARER,
 				access.token(),
 				access.expiresAt(),
+				access.expiresInSeconds(),
 				refresh.rawToken(),
 				refresh.expiresAt(),
 				toUserResponse(user));

@@ -17,6 +17,7 @@ import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.UUID;
@@ -70,9 +71,10 @@ public class RefreshTokenService {
     }
 
     private Created create(User user, UUID familyId, String userAgent, String ipAddress) {
-        Instant now = clock.instant();
+        Instant now = clock.instant().truncatedTo(ChronoUnit.SECONDS);
         String raw = generateRawToken();
-        Instant expiresAt = now.plus(Duration.ofDays(properties.getRefreshExpirationDays()));
+        Instant expiresAt = now.plus(Duration.ofDays(properties.getRefreshExpirationDays()))
+                .truncatedTo(ChronoUnit.SECONDS);
         RefreshToken entity = repository.save(
                 RefreshToken.create(user, familyId, hash(raw), expiresAt, userAgent, ipAddress, now));
         return new Created(entity, new IssuedRefresh(raw, expiresAt));
