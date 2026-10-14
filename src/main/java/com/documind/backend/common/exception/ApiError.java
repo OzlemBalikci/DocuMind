@@ -34,4 +34,14 @@ public record ApiError(
 				Instant.now().truncatedTo(ChronoUnit.SECONDS),
 				details);
 	}
+
+	public static ApiError ofStatus(int httpStatus, String message, String path) {
+		return new ApiError(
+				"HTTP_" + httpStatus,
+				message,
+				httpStatus,
+				path,
+				Instant.now().truncatedTo(ChronoUnit.SECONDS),
+				null);
+	}
 }

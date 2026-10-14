@@ -7,6 +7,7 @@ import com.documind.backend.auth.dto.MeResponse;
 import com.documind.backend.auth.dto.RegisterRequest;
 import com.documind.backend.auth.dto.UserResponse;
 import com.documind.backend.common.exception.EmailAlreadyExistsException;
+import com.documind.backend.common.util.Texts;
 import com.documind.backend.common.exception.InvalidCredentialsException;
 import com.documind.backend.common.exception.InvalidRefreshTokenException;
 import com.documind.backend.common.exception.NotFoundException;
@@ -31,14 +32,15 @@ public class AuthService {
 
 	@Transactional
 	public IssuedAuthSession register(RegisterRequest request, String userAgent, String ipAddress) {
-		if (userRepository.existsByEmailIgnoreCase(request.email().trim())) {
+		String email = Texts.normalizeEmail(request.email());
+		if (userRepository.existsByEmail(email)) {
 			throw new EmailAlreadyExistsException();
 		}
 
 		User user = User.builder()
-				.email(request.email())
+				.email(email)
 				.passwordHash(passwordEncoder.encode(request.password()))
-				.fullName(request.fullName().trim())
+				.fullName(Texts.normalizeFullName(request.fullName()))
 				.build();
 
 		try {
@@ -52,7 +54,8 @@ public class AuthService {
 
 	@Transactional
 	public IssuedAuthSession login(LoginRequest request, String userAgent, String ipAddress) {
-		User user = userRepository.findByEmailIgnoreCase(request.email().trim())
+		String email = Texts.normalizeEmail(request.email());
+		User user = userRepository.findByEmail(email)
 				.filter(u -> passwordEncoder.matches(request.password(), u.getPasswordHash()))
 				.orElseThrow(InvalidCredentialsException::new);
 

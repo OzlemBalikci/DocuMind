@@ -1,10 +1,13 @@
 package com.documind.backend.auth.dto;
 
-import jakarta.validation.constraints.Email;
+import com.documind.backend.common.validation.ValidEmail;
+import com.documind.backend.common.validation.ValidationMessages;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
 
+@JsonIgnoreProperties(ignoreUnknown = false)
 public record LoginRequest(
-        @NotBlank @Email String email,
-        @NotBlank @Size(min = 8, max = 72) String password
-) { }
+		@ValidEmail String email,
+		@NotBlank(message = ValidationMessages.PASSWORD_REQUIRED) String password
+) {
+}

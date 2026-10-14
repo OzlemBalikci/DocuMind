@@ -1,11 +1,16 @@
 package com.documind.backend.auth.dto;
 
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
+import com.documind.backend.common.validation.ValidEmail;
+import com.documind.backend.common.validation.ValidFullName;
+import com.documind.backend.common.validation.ValidPassword;
+import com.documind.backend.common.validation.ValidRegisterRequest;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+@JsonIgnoreProperties(ignoreUnknown = false)
+@ValidRegisterRequest
 public record RegisterRequest(
-        @NotBlank @Email String email,
-        @NotBlank @Size(min = 8, max = 72) String password,
-        @NotBlank @Size(min = 2, max = 100) String fullName
-) { }
+		@ValidEmail String email,
+		@ValidPassword String password,
+		@ValidFullName String fullName
+) {
+}

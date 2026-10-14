@@ -7,24 +7,24 @@ import org.springframework.http.HttpStatus;
 @Getter
 @RequiredArgsConstructor
 public enum ErrorCode {
-    VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "Request validation failed"),
+    VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "Validation failed"),
     MALFORMED_REQUEST(HttpStatus.BAD_REQUEST, "Malformed request body"),
-    UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "Authentication required"),
-    INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "Invalid credentials"),
-    INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "Invalid or expired refresh token"),
-    FORBIDDEN(HttpStatus.FORBIDDEN, "Access denied"),
-    NOT_FOUND(HttpStatus.NOT_FOUND, "Resource not found"),
-    METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "HTTP method not supported"),
-    EMAIL_ALREADY_EXISTS(HttpStatus.CONFLICT, "Email already registered"),
-    FILE_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "File too large"),
-    UNSUPPORTED_FILE_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Unsupported file type"),
-    QUOTA_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "Quota exceeded"),
-    QUEUE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "Service temporarily unavailable"),
-    INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected error"),
-    UNSUPPORTED_MEDIA_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Unsupported media type"),
-    NOT_ACCEPTABLE(HttpStatus.NOT_ACCEPTABLE, "Requested representation is not available"),
-    CONCURRENT_MODIFICATION(HttpStatus.CONFLICT, "The resource was modified concurrently, please retry"),
-    TEMPORARILY_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "Service temporarily unavailable, please retry");
+    UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "Authentication is required to access this resource"),
+    INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "Invalid email or password"),
+    INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "Refresh token is invalid or has expired"),
+    FORBIDDEN(HttpStatus.FORBIDDEN, "You do not have permission to access this resource"),
+    NOT_FOUND(HttpStatus.NOT_FOUND, "The requested resource was not found"),
+    METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "HTTP method is not supported for this endpoint"),
+    EMAIL_ALREADY_EXISTS(HttpStatus.CONFLICT, "An account with this email already exists"),
+    FILE_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "The uploaded file exceeds the maximum allowed size"),
+    UNSUPPORTED_FILE_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "The uploaded file type is not supported"),
+    QUOTA_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "Usage quota exceeded, please try again later"),
+    QUEUE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "The service is temporarily unavailable, please try again later"),
+    INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred"),
+    UNSUPPORTED_MEDIA_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "The request content type is not supported"),
+    NOT_ACCEPTABLE(HttpStatus.NOT_ACCEPTABLE, "The requested response format is not available"),
+    CONCURRENT_MODIFICATION(HttpStatus.CONFLICT, "The resource was modified by another request, please retry"),
+    TEMPORARILY_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "The service is temporarily unavailable, please retry shortly");
 
     private final HttpStatus status;
     private final String defaultMessage;
