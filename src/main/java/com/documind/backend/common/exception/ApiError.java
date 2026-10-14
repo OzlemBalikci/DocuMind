@@ -3,6 +3,7 @@ package com.documind.backend.common.exception;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Map;
 
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
@@ -13,11 +14,11 @@ public record ApiError (
         Map<String, String> details
 ){
     public static ApiError of(ErrorCode code, String message) {
-        return new ApiError(code.name(), message, Instant.now(), null);
+        return new ApiError(code.name(), message, Instant.now().truncatedTo(ChronoUnit.SECONDS), null);
     }
 
     public static ApiError of(ErrorCode code, String message, Map<String, String> details) {
-        return new ApiError(code.name(), message, Instant.now(), details);
+        return new ApiError(code.name(), message, Instant.now().truncatedTo(ChronoUnit.SECONDS), details);
     }
 
 }

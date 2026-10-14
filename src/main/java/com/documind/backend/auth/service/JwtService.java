@@ -14,6 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Date;
 import java.util.UUID;
 
@@ -30,7 +31,7 @@ public class JwtService {
     private final Clock clock;
     private final JwtParser accessTokenParser;
 
-    public record AccessToken(String token, String jti, Instant expiresAt) {
+    public record AccessToken(String token, String jti, Instant expiresAt, long expiresInSeconds) {
     }
 
     public record AccessClaims(Long userId, String jti, Instant expiresAt) {
@@ -66,8 +67,8 @@ public class JwtService {
         if (userId == null) {
             throw new IllegalArgumentException("userId must not be null");
         }
-        Instant now = clock.instant();
-        Instant expiresAt = now.plus(accessTtl);
+        Instant now = clock.instant().truncatedTo(ChronoUnit.SECONDS);
+        Instant expiresAt = now.plus(accessTtl).truncatedTo(ChronoUnit.SECONDS);
         String jti = UUID.randomUUID().toString();
 
         String token = Jwts.builder()
@@ -80,7 +81,7 @@ public class JwtService {
                 .signWith(key, Jwts.SIG.HS256)
                 .compact();
 
-        return new AccessToken(token, jti, expiresAt);
+        return new AccessToken(token, jti, expiresAt, accessTtl.toSeconds());
     }
 
     public AccessClaims parseAccess(String token) {
@@ -99,7 +100,7 @@ public class JwtService {
         return new AccessClaims(
                 parseUserId(claims.getSubject()),
                 claims.getId(),
-                claims.getExpiration().toInstant());
+                claims.getExpiration().toInstant().truncatedTo(ChronoUnit.SECONDS));
     }
 
     private static Long parseUserId(String subject) {
