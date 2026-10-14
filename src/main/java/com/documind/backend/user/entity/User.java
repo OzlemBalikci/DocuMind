@@ -1,6 +1,7 @@
 package com.documind.backend.user.entity;
 
 import com.documind.backend.common.entity.AuditedEntity;
+import com.documind.backend.common.util.Texts;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -35,7 +36,7 @@ public class User extends AuditedEntity {
 
 	@Builder
 	private User(String email, String passwordHash, String fullName) {
-		this.email = email.trim().toLowerCase();
+		this.email = Texts.normalizeEmail(email);
 		this.passwordHash = passwordHash;
 		this.fullName = fullName;
 	}
