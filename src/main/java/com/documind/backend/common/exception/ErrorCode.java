@@ -20,7 +20,11 @@ public enum ErrorCode {
     UNSUPPORTED_FILE_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Unsupported file type"),
     QUOTA_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "Quota exceeded"),
     QUEUE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "Service temporarily unavailable"),
-    INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected error");
+    INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected error"),
+    UNSUPPORTED_MEDIA_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Unsupported media type"),
+    NOT_ACCEPTABLE(HttpStatus.NOT_ACCEPTABLE, "Requested representation is not available"),
+    CONCURRENT_MODIFICATION(HttpStatus.CONFLICT, "The resource was modified concurrently, please retry"),
+    TEMPORARILY_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "Service temporarily unavailable, please retry");
 
     private final HttpStatus status;
     private final String defaultMessage;
