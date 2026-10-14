@@ -1,15 +1,19 @@
 package com.documind.backend.auth.controller;
 
 import com.documind.backend.auth.dto.AuthResponse;
+import com.documind.backend.auth.dto.DeleteAccountRequest;
+import com.documind.backend.auth.dto.ForgotPasswordRequest;
 import com.documind.backend.auth.dto.IssuedAuthSession;
 import com.documind.backend.auth.dto.LoginRequest;
 import com.documind.backend.auth.dto.LogoutRequest;
 import com.documind.backend.auth.dto.MeResponse;
 import com.documind.backend.auth.dto.RefreshRequest;
 import com.documind.backend.auth.dto.RegisterRequest;
+import com.documind.backend.auth.dto.ResetPasswordRequest;
 import com.documind.backend.auth.security.AuthPrincipal;
 import com.documind.backend.auth.security.RefreshTokenCookieSupport;
 import com.documind.backend.auth.service.AuthService;
+import com.documind.backend.auth.service.PasswordResetService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +22,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -30,6 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
 	private final AuthService authService;
+	private final PasswordResetService passwordResetService;
 	private final RefreshTokenCookieSupport refreshTokenCookieSupport;
 
 	@PostMapping("/register")
@@ -86,6 +92,29 @@ public class AuthController {
 		return authService.getMe(principal.userId());
 	}
 
+	@PostMapping("/forgot-password")
+	public ResponseEntity<Void> forgotPassword(@Valid @RequestBody ForgotPasswordRequest body) {
+		passwordResetService.forgotPassword(body);
+		return ResponseEntity.noContent().build();
+	}
+
+	@PostMapping("/reset-password")
+	public ResponseEntity<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest body) {
+		passwordResetService.resetPassword(body);
+		return ResponseEntity.noContent().build();
+	}
+
+	@DeleteMapping("/account")
+	public ResponseEntity<Void> deleteAccount(
+			@AuthenticationPrincipal AuthPrincipal principal,
+			@Valid @RequestBody DeleteAccountRequest body,
+			HttpServletRequest httpRequest) {
+		authService.deleteAccount(principal.userId(), body.password(), bearerToken(httpRequest));
+		return ResponseEntity.noContent()
+				.header(HttpHeaders.SET_COOKIE, refreshTokenCookieSupport.clearCookie().toString())
+				.build();
+	}
+
 	private ResponseEntity<AuthResponse> withRefreshCookie(HttpStatus status, IssuedAuthSession session) {
 		ResponseCookie cookie = refreshTokenCookieSupport.toSetCookie(
 				session.refreshToken(),
@@ -101,6 +130,14 @@ public class AuthController {
 		}
 		if (second != null && !second.isBlank()) {
 			return second;
+		}
+		return null;
+	}
+
+	private static String bearerToken(HttpServletRequest request) {
+		String header = request.getHeader(HttpHeaders.AUTHORIZATION);
+		if (header != null && header.startsWith("Bearer ")) {
+			return header.substring("Bearer ".length()).trim();
 		}
 		return null;
 	}

@@ -12,6 +12,7 @@ public enum ErrorCode {
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "Authentication is required to access this resource"),
     INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "Invalid email or password"),
     INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "Refresh token is invalid or has expired"),
+    INVALID_PASSWORD_RESET_CODE(HttpStatus.BAD_REQUEST, "Invalid or expired password reset code"),
     FORBIDDEN(HttpStatus.FORBIDDEN, "You do not have permission to access this resource"),
     NOT_FOUND(HttpStatus.NOT_FOUND, "The requested resource was not found"),
     METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "HTTP method is not supported for this endpoint"),
