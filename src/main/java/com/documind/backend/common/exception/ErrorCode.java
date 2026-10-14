@@ -1,9 +1,11 @@
 package com.documind.backend.common.exception;
 
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 
 @Getter
+@RequiredArgsConstructor
 public enum ErrorCode {
     VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "Request validation failed"),
     MALFORMED_REQUEST(HttpStatus.BAD_REQUEST, "Malformed request body"),
@@ -22,9 +24,4 @@ public enum ErrorCode {
 
     private final HttpStatus status;
     private final String defaultMessage;
-
-    ErrorCode(HttpStatus status, String defaultMessage) {
-        this.status = status;
-        this.defaultMessage = defaultMessage;
-    }
 }
