@@ -1,10 +1,9 @@
 package com.documind.backend.auth.service;
 
 import com.documind.backend.auth.dto.AuthResponse;
+import com.documind.backend.auth.dto.IssuedAuthSession;
 import com.documind.backend.auth.dto.LoginRequest;
-import com.documind.backend.auth.dto.LogoutRequest;
 import com.documind.backend.auth.dto.MeResponse;
-import com.documind.backend.auth.dto.RefreshRequest;
 import com.documind.backend.auth.dto.RegisterRequest;
 import com.documind.backend.auth.dto.UserResponse;
 import com.documind.backend.common.exception.EmailAlreadyExistsException;
@@ -31,7 +30,7 @@ public class AuthService {
 	private final AccessTokenBlacklistService accessTokenBlackListService;
 
 	@Transactional
-	public AuthResponse register(RegisterRequest request, String userAgent, String ipAddress) {
+	public IssuedAuthSession register(RegisterRequest request, String userAgent, String ipAddress) {
 		if (userRepository.existsByEmailIgnoreCase(request.email().trim())) {
 			throw new EmailAlreadyExistsException();
 		}
@@ -52,7 +51,7 @@ public class AuthService {
 	}
 
 	@Transactional
-	public AuthResponse login(LoginRequest request, String userAgent, String ipAddress) {
+	public IssuedAuthSession login(LoginRequest request, String userAgent, String ipAddress) {
 		User user = userRepository.findByEmailIgnoreCase(request.email().trim())
 				.filter(u -> passwordEncoder.matches(request.password(), u.getPasswordHash()))
 				.orElseThrow(InvalidCredentialsException::new);
@@ -61,21 +60,25 @@ public class AuthService {
 	}
 
 	@Transactional(noRollbackFor = InvalidRefreshTokenException.class)
-	public AuthResponse refresh(RefreshRequest request, String userAgent, String ipAddress) {
+	public IssuedAuthSession refresh(String refreshToken, String userAgent, String ipAddress) {
+		if (refreshToken == null || refreshToken.isBlank()) {
+			throw new InvalidRefreshTokenException();
+		}
+
 		RefreshTokenService.RotatedRefresh rotated =
-				refreshTokenService.rotate(request.refreshToken(), userAgent, ipAddress);
+				refreshTokenService.rotate(refreshToken, userAgent, ipAddress);
 
 		JwtService.AccessToken access = jwtService.issueAccess(rotated.user().getId());
-		return toAuthResponse(rotated.user(), access, rotated.refresh());
+		return toIssuedSession(rotated.user(), access, rotated.refresh());
 	}
 
-	public void logout(LogoutRequest request) {
-		refreshTokenService.revoke(request.refreshToken());
+	public void logout(String refreshToken, String accessToken) {
+		refreshTokenService.revoke(refreshToken);
 		try {
-			JwtService.AccessClaims claims = jwtService.parseAccess(request.accessToken());
+			JwtService.AccessClaims claims = jwtService.parseAccess(accessToken);
 			accessTokenBlackListService.revokeUntilExpiry(claims.jti(), claims.expiresAt());
-        } catch (JwtException ignored) {
-
+		} catch (JwtException ignored) {
+			// Expired or malformed access token should not fail logout.
 		}
 	}
 
@@ -92,23 +95,22 @@ public class AuthService {
 				null);
 	}
 
-	private AuthResponse issueTokens(User user, String userAgent, String ipAddress) {
+	private IssuedAuthSession issueTokens(User user, String userAgent, String ipAddress) {
 		JwtService.AccessToken access = jwtService.issueAccess(user.getId());
 		RefreshTokenService.IssuedRefresh refresh = refreshTokenService.issue(user, userAgent, ipAddress);
-		return toAuthResponse(user, access, refresh);
+		return toIssuedSession(user, access, refresh);
 	}
 
-	private AuthResponse toAuthResponse(User user,
+	private IssuedAuthSession toIssuedSession(User user,
 			JwtService.AccessToken access,
 			RefreshTokenService.IssuedRefresh refresh) {
-		return new AuthResponse(
+		AuthResponse response = new AuthResponse(
 				AuthResponse.TOKEN_TYPE_BEARER,
 				access.token(),
 				access.expiresAt(),
 				access.expiresInSeconds(),
-				refresh.rawToken(),
-				refresh.expiresAt(),
 				toUserResponse(user));
+		return new IssuedAuthSession(response, refresh.rawToken(), refresh.expiresAt());
 	}
 
 	private UserResponse toUserResponse(User user) {
