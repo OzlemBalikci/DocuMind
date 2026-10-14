@@ -13,6 +13,7 @@ import com.documind.backend.common.exception.InvalidRefreshTokenException;
 import com.documind.backend.common.exception.NotFoundException;
 import com.documind.backend.user.entity.User;
 import com.documind.backend.user.repository.UserRepository;
+import io.jsonwebtoken.JwtException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -27,6 +28,7 @@ public class AuthService {
 	private final PasswordEncoder passwordEncoder;
 	private final JwtService jwtService;
 	private final RefreshTokenService refreshTokenService;
+	private final AccessTokenBlacklistService accessTokenBlackListService;
 
 	@Transactional
 	public AuthResponse register(RegisterRequest request, String userAgent, String ipAddress) {
@@ -69,6 +71,12 @@ public class AuthService {
 
 	public void logout(LogoutRequest request) {
 		refreshTokenService.revoke(request.refreshToken());
+		try {
+			JwtService.AccessClaims claims = jwtService.parseAccess(request.accessToken());
+			accessTokenBlackListService.revokeUntilExpiry(claims.jti(), claims.expiresAt());
+        } catch (JwtException ignored) {
+
+		}
 	}
 
 	@Transactional(readOnly = true)

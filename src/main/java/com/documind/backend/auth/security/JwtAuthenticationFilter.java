@@ -1,5 +1,6 @@
 package com.documind.backend.auth.security;
 
+import com.documind.backend.auth.service.AccessTokenBlacklistService;
 import com.documind.backend.auth.service.JwtService;
 import com.documind.backend.user.repository.UserRepository;
 import io.jsonwebtoken.JwtException;
@@ -29,6 +30,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final UserRepository userRepository;
+    private final AccessTokenBlacklistService accessTokenBlackListService;
 
 
     @Override
@@ -46,6 +48,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         try {
             JwtService.AccessClaims claims = jwtService.parseAccess(token);
+
+            if (accessTokenBlackListService.isRevoked(claims.jti())){
+                SecurityContextHolder.clearContext();
+                filterChain.doFilter(request, response);
+                return;
+            }
 
             userRepository.findById(claims.userId()).ifPresent(user -> {
                 AuthPrincipal principal = new AuthPrincipal(user.getId(), user.getRole());
