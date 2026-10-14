@@ -11,6 +11,7 @@ TRUNCATE TABLE
 	documents,
 	processing_jobs,
 	llm_usage_logs,
+	password_reset_codes,
 	refresh_tokens,
 	users
 RESTART IDENTITY CASCADE;

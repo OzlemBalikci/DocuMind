@@ -85,6 +85,26 @@ public class AuthService {
 		}
 	}
 
+	@Transactional
+	public void deleteAccount(Long userId, String password, String accessToken) {
+		User user = userRepository.findById(userId)
+				.orElseThrow(NotFoundException::new);
+		if (password == null || !passwordEncoder.matches(password, user.getPasswordHash())) {
+			throw new InvalidCredentialsException();
+		}
+		if (accessToken != null && !accessToken.isBlank()) {
+			try {
+				JwtService.AccessClaims claims = jwtService.parseAccess(accessToken);
+				if (userId.equals(claims.userId())) {
+					accessTokenBlackListService.revokeUntilExpiry(claims.jti(), claims.expiresAt());
+				}
+			} catch (JwtException ignored) {
+				// Account deletion still proceeds when the access token cannot be parsed.
+			}
+		}
+		userRepository.delete(user);
+	}
+
 	@Transactional(readOnly = true)
 	public MeResponse getMe(Long userId) {
 		User user = userRepository.findById(userId)

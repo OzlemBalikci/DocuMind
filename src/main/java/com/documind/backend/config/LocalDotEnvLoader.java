@@ -30,6 +30,10 @@ public final class LocalDotEnvLoader {
 		applyIfMissing("spring.datasource.password", postgresPassword(values));
 		applyIfMissing("app.jwt.secret", first(values, "local.jwt.secret", "JWT_SECRET"), null);
 		applyIfMissing("spring.rabbitmq.password", first(values, "local.rabbitmq.password", "RABBITMQ_PASSWORD"), null);
+		applyIfMissing("app.mail.host", first(values, "MAIL_HOST"), null);
+		applyIfMissing("app.mail.username", first(values, "MAIL_USERNAME"), null);
+		applyIfMissing("app.mail.password", first(values, "MAIL_PASSWORD"), null);
+		applyIfMissing("app.mail.from", first(values, "MAIL_FROM"), null);
 	}
 
 	private static boolean usesLocalProfile() {
