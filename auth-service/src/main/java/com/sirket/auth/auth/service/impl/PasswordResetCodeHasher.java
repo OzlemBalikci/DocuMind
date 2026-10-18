@@ -1,5 +1,6 @@
 package com.sirket.auth.auth.service.impl;
 
+import com.sirket.auth.auth.domain.ResetCodeHasher;
 import com.sirket.auth.common.config.PasswordResetProperties;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -11,7 +12,7 @@ import java.security.GeneralSecurityException;
 import java.util.HexFormat;
 
 @Component
-public class PasswordResetCodeHasher {
+public class PasswordResetCodeHasher implements ResetCodeHasher {
 
 	private static final int MIN_PEPPER_LENGTH = 32;
 	private static final String HMAC_SHA256 = "HmacSHA256";
@@ -31,7 +32,8 @@ public class PasswordResetCodeHasher {
 		this.pepper = pepper.getBytes(StandardCharsets.UTF_8);
 	}
 
-	public String hmac(String code) {
+	@Override
+	public String hash(String code) {
 		try {
 			Mac mac = Mac.getInstance(HMAC_SHA256);
 			mac.init(new SecretKeySpec(pepper, HMAC_SHA256));

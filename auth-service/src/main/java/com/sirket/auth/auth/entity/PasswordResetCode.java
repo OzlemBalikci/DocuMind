@@ -14,6 +14,10 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import com.sirket.auth.auth.domain.ResetCodeHasher;
+
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Instant;
 
 @Entity
@@ -53,5 +57,23 @@ public class PasswordResetCode extends CreatedOnlyEntity {
 
 	public void recordFailedAttempt() {
 		this.failedAttempts++;
+	}
+
+	public boolean isLockedOut(int maxFailedAttempts) {
+		return failedAttempts >= maxFailedAttempts;
+	}
+
+	public boolean matchesPlainCode(String plainCode, ResetCodeHasher hasher) {
+		String presented = hasher.hash(plainCode.trim());
+		return MessageDigest.isEqual(
+				presented.getBytes(StandardCharsets.UTF_8),
+				codeHash.getBytes(StandardCharsets.UTF_8));
+	}
+
+	public void recordWrongAttempt(int maxFailedAttempts, Instant now) {
+		recordFailedAttempt();
+		if (failedAttempts >= maxFailedAttempts) {
+			markUsed(now);
+		}
 	}
 }

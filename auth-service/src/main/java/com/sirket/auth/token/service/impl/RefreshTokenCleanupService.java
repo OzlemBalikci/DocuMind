@@ -11,10 +11,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 
-/**
- * Removes refresh token rows long after expiry to keep the table bounded.
- * Revoked rows with recent expiry may remain briefly for audit; cutoff is conservative.
- */
+
 @Slf4j
 @Service
 @RequiredArgsConstructor

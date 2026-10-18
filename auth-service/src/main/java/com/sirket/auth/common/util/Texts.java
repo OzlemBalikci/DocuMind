@@ -7,9 +7,6 @@ public final class Texts {
 	private Texts() {
 	}
 
-	/**
-	 * Canonical form for storing and looking up user emails (trim + {@link Locale#ROOT} lower case).
-	 */
 	public static String normalizeEmail(String email) {
 		if (email == null) {
 			throw new IllegalArgumentException("email must not be null");

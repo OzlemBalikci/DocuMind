@@ -20,7 +20,6 @@ public class RestAccessDeniedHandler implements AccessDeniedHandler {
 
     private final ObjectMapper objectMapper;
 
-
     @Override
     public void handle(HttpServletRequest request,
                        HttpServletResponse response,
