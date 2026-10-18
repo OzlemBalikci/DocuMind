@@ -1,7 +1,7 @@
 package com.documind.auth.token.entity;
 
 import com.documind.auth.common.util.Texts;
-import com.documind.auth.user.entity.CreatedOnlyEntity;
+import com.documind.common.persistence.CreatedOnlyEntity;
 import com.documind.auth.user.entity.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

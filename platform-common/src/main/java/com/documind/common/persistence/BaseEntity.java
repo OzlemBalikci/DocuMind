@@ -1,4 +1,4 @@
-package com.documind.auth.user.entity;
+package com.documind.common.persistence;
 
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;

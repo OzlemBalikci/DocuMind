@@ -1,6 +1,7 @@
 package com.documind.auth.user.entity;
 
 import com.documind.auth.common.util.Texts;
+import com.documind.common.persistence.AuditedEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
