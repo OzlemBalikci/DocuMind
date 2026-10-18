@@ -11,4 +11,4 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 ARG MODULE
 COPY --from=build /workspace/${MODULE}/target/${MODULE}-*.jar app.jar
-ENTRYPOINT ["java", "-jar", "/app.jar"]
+ENTRYPOINT ["java", "-jar", "app.jar"]

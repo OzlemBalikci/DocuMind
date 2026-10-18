@@ -55,7 +55,12 @@ public class GlobalExceptionHandler {
 			log.debug("API error {} on {} {}", code, request.getMethod(), request.getRequestURI());
 		}
 		String message = Objects.requireNonNullElse(ex.getMessage(), code.getDefaultMessage());
-		return build(code, message, request);
+		ResponseEntity.BodyBuilder response = ResponseEntity.status(code.getStatus());
+		if (ex instanceof TooManyRequestsException limited) {
+			long seconds = Math.max(1, limited.getRetryAfter().toSeconds());
+			response.header(HttpHeaders.RETRY_AFTER, Long.toString(seconds));
+		}
+		return response.body(ApiError.of(code, message, request.getRequestURI()));
 	}
 
 	@ExceptionHandler(MethodArgumentNotValidException.class)

@@ -23,7 +23,12 @@ public class UserHeaderFilter extends OncePerRequestFilter {
 	static final Set<String> BLOCKED = Set.of(
 			"x-user-id",
 			"x-user-email",
-			"x-internal-user");
+			"x-internal-user",
+			"forwarded");
+
+	static final Set<String> CLIENT_IP_HEADERS = Set.of(
+			"x-forwarded-for",
+			"x-real-ip");
 
 	@Override
 	protected void doFilterInternal(HttpServletRequest request,
@@ -34,14 +39,20 @@ public class UserHeaderFilter extends OncePerRequestFilter {
 
 	private static final class StrippedIdentityRequest extends HttpServletRequestWrapper {
 
+		private final String clientIp;
+
 		private StrippedIdentityRequest(HttpServletRequest request) {
 			super(request);
+			this.clientIp = request.getRemoteAddr();
 		}
 
 		@Override
 		public String getHeader(String name) {
 			if (blocked(name)) {
 				return null;
+			}
+			if (clientIpHeader(name)) {
+				return clientIp;
 			}
 			return super.getHeader(name);
 		}
@@ -51,18 +62,33 @@ public class UserHeaderFilter extends OncePerRequestFilter {
 			if (blocked(name)) {
 				return Collections.emptyEnumeration();
 			}
+			if (clientIpHeader(name)) {
+				return Collections.enumeration(Collections.singletonList(clientIp));
+			}
 			return super.getHeaders(name);
 		}
 
 		@Override
 		public Enumeration<String> getHeaderNames() {
-			return Collections.enumeration(Collections.list(super.getHeaderNames()).stream()
-					.filter(name -> !blocked(name))
-					.toList());
+			Set<String> names = new java.util.LinkedHashSet<>();
+			Enumeration<String> existing = super.getHeaderNames();
+			while (existing.hasMoreElements()) {
+				String name = existing.nextElement();
+				if (!blocked(name) && !clientIpHeader(name)) {
+					names.add(name);
+				}
+			}
+			names.add("X-Forwarded-For");
+			names.add("X-Real-IP");
+			return Collections.enumeration(names);
 		}
 
 		private static boolean blocked(String name) {
 			return name != null && BLOCKED.contains(name.toLowerCase(Locale.ROOT));
+		}
+
+		private static boolean clientIpHeader(String name) {
+			return name != null && CLIENT_IP_HEADERS.contains(name.toLowerCase(Locale.ROOT));
 		}
 	}
 }

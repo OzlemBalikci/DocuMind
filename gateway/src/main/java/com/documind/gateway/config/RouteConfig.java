@@ -1,7 +1,7 @@
 package com.documind.gateway.config;
 
 import com.documind.gateway.GatewayEdgeProperties;
-import com.documind.gateway.ratelimit.RateLimitConfig;
+import com.documind.gateway.ratelimit.RateLimitFilters;
 import com.documind.gateway.ratelimit.RateLimitProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cloud.gateway.server.mvc.filter.BeforeFilterFunctions;
@@ -18,12 +18,12 @@ import org.springframework.web.servlet.function.ServerResponse;
 @EnableConfigurationProperties({GatewayEdgeProperties.class, RateLimitProperties.class})
 public class RouteConfig {
 
-	private final RateLimitConfig rateLimiter;
+	private final RateLimitFilters rateLimits;
 	private final ResilienceConfig resilience;
 	private final CorsConfig cors;
 
-	public RouteConfig(RateLimitConfig rateLimiter, ResilienceConfig resilience, CorsConfig cors) {
-		this.rateLimiter = rateLimiter;
+	public RouteConfig(RateLimitFilters rateLimits, ResilienceConfig resilience, CorsConfig cors) {
+		this.rateLimits = rateLimits;
 		this.resilience = resilience;
 		this.cors = cors;
 	}
@@ -31,6 +31,9 @@ public class RouteConfig {
 	@Bean
 	RouterFunction<ServerResponse> gatewayRoutes(GatewayEdgeProperties properties) {
 		return login(properties)
+				.and(register(properties))
+				.and(passwordReset(properties))
+				.and(refresh(properties))
 				.and(proxy("auth", "/api/auth/**", properties.getAuthUri(), "auth", properties, false))
 				.and(proxy("documents", "/api/documents/**", properties.getDocumentUri(), "documents", properties, false))
 				.and(proxy("chat", "/api/chat/**", properties.getChatUri(), "chat", properties, true));
@@ -40,9 +43,40 @@ public class RouteConfig {
 		return edge("auth-login", properties)
 				.POST("/api/auth/login", HandlerFunctions.http())
 				.before(BeforeFilterFunctions.uri(properties.getAuthUri()))
-				.filter(rateLimiter.loginLimit(properties))
+				.filter(rateLimits.of("login"))
 				.filter(resilience.breaker("auth-login"))
-				.after(cors::apply)
+				.after(cors::stripDownstreamCors)
+				.build();
+	}
+
+	private RouterFunction<ServerResponse> register(GatewayEdgeProperties properties) {
+		return edge("auth-register", properties)
+				.POST("/api/auth/register", HandlerFunctions.http())
+				.before(BeforeFilterFunctions.uri(properties.getAuthUri()))
+				.filter(rateLimits.of("register"))
+				.filter(resilience.breaker("auth"))
+				.after(cors::stripDownstreamCors)
+				.build();
+	}
+
+	private RouterFunction<ServerResponse> passwordReset(GatewayEdgeProperties properties) {
+		return edge("auth-password-reset", properties)
+				.route(RequestPredicates.path("/api/auth/forgot-password")
+						.or(RequestPredicates.path("/api/auth/reset-password")), HandlerFunctions.http())
+				.before(BeforeFilterFunctions.uri(properties.getAuthUri()))
+				.filter(rateLimits.of("password-reset"))
+				.filter(resilience.breaker("auth"))
+				.after(cors::stripDownstreamCors)
+				.build();
+	}
+
+	private RouterFunction<ServerResponse> refresh(GatewayEdgeProperties properties) {
+		return edge("auth-refresh", properties)
+				.POST("/api/auth/refresh", HandlerFunctions.http())
+				.before(BeforeFilterFunctions.uri(properties.getAuthUri()))
+				.filter(rateLimits.of("refresh"))
+				.filter(resilience.breaker("auth"))
+				.after(cors::stripDownstreamCors)
 				.build();
 	}
 
@@ -56,11 +90,11 @@ public class RouteConfig {
 				.route(RequestPredicates.path(pattern), HandlerFunctions.http())
 				.before(BeforeFilterFunctions.uri(uri));
 		if (rateLimited) {
-			route = route.filter(rateLimiter.chatLimit(properties));
+			route = route.filter(rateLimits.of("chat"));
 		}
 		return route
 				.filter(resilience.breaker(breakerId))
-				.after(cors::apply)
+				.after(cors::stripDownstreamCors)
 				.build();
 	}
 
