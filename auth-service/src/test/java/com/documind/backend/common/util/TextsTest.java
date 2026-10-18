@@ -1,6 +1,6 @@
 package com.documind.backend.common.util;
 
-import com.sirket.auth.common.util.Texts;
+import com.documind.auth.common.util.Texts;
 import org.junit.jupiter.api.Test;
 
 import java.util.Locale;
