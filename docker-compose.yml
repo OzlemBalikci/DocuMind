@@ -12,13 +12,13 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
-      - documind_pgdata:/var/lib/postgresql/data
+      - documind_ms_pgdata:/var/lib/postgresql/data
+      - ./docker/postgres/init-databases.sql:/docker-entrypoint-initdb.d/02-init-databases.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
-      retries: 5
-
+      retries: 10
 
   redis:
     image: redis:7-alpine
@@ -55,19 +55,136 @@ services:
       timeout: 10s
       retries: 5
 
-  ollama:
-      image: ollama/ollama:latest
-      container_name: documind-ollama
-      restart: unless-stopped
-      ports:
-        - "11434:11434"
-      volumes:
-        - ollama_data:/root/.ollama
+  minio:
+    # minio/minio was removed from Docker Hub; Chainguard publishes a maintained replacement.
+    image: cgr.dev/chainguard/minio:latest
+    container_name: documind-minio
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-documind}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-documind-secret}
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+    volumes:
+      - minio_data:/data
 
+  auth-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        MODULE: auth-service
+    container_name: documind-auth
+    restart: unless-stopped
+    ports:
+      - "${AUTH_PORT:-8082}:8081"
+    env_file: .env
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/auth_db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_DATA_REDIS_HOST: redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
+  document-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        MODULE: document-service
+    container_name: documind-document
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/document_db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_DATA_REDIS_HOST: redis
+      MINIO_ENDPOINT: http://minio:9000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      minio:
+        condition: service_started
+
+  ingestion-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        MODULE: ingestion-worker
+    container_name: documind-ingestion
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/document_db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_RABBITMQ_HOST: rabbitmq
+    depends_on:
+      document-service:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+
+  chat-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        MODULE: chat-service
+    container_name: documind-chat
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/chat_db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_DATA_REDIS_HOST: redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        MODULE: gateway
+    container_name: documind-gateway
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "${PORT:-8087}:8087"
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      PORT: 8087
+      AUTH_SERVICE_URI: http://auth-service:8081
+      DOCUMENT_SERVICE_URI: http://document-service:8082
+      CHAT_SERVICE_URI: http://chat-service:8083
+    depends_on:
+      - auth-service
+      - document-service
+      - chat-service
 
 volumes:
-  documind_pgdata:
+  documind_ms_pgdata:
   redis_data:
   rabbitmq_data:
-  ollama_data:
+  minio_data:
