@@ -34,9 +34,9 @@ public class RouteConfig {
 				.and(register(properties))
 				.and(passwordReset(properties))
 				.and(refresh(properties))
-				.and(proxy("auth", "/api/auth/**", properties.getAuthUri(), "auth", properties, false))
-				.and(proxy("documents", "/api/documents/**", properties.getDocumentUri(), "documents", properties, false))
-				.and(proxy("chat", "/api/chat/**", properties.getChatUri(), "chat", properties, true));
+				.and(proxy("auth", "/api/auth/**", properties.getAuthUri(), "auth", properties, null))
+				.and(proxy("documents", "/api/documents/**", properties.getDocumentUri(), "documents", properties, null))
+				.and(proxy("chat", "/api/chat/**", properties.getChatUri(), "chat", properties, "chat"));
 	}
 
 	private RouterFunction<ServerResponse> login(GatewayEdgeProperties properties) {
@@ -85,12 +85,12 @@ public class RouteConfig {
 			String uri,
 			String breakerId,
 			GatewayEdgeProperties properties,
-			boolean rateLimited) {
+			String rateLimitPolicy) {
 		RouterFunctions.Builder route = edge(id, properties)
 				.route(RequestPredicates.path(pattern), HandlerFunctions.http())
 				.before(BeforeFilterFunctions.uri(uri));
-		if (rateLimited) {
-			route = route.filter(rateLimits.of("chat"));
+		if (rateLimitPolicy != null) {
+			route = route.filter(rateLimits.of(rateLimitPolicy));
 		}
 		return route
 				.filter(resilience.breaker(breakerId))

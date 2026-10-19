@@ -20,7 +20,7 @@ public class CorsConfig {
 	private final List<String> allowedOrigins;
 
 
-    public CorsConfig(@Value("${app.cors.allowed-origins") String allowedOrigins) {
+    public CorsConfig(@Value("${app.cors.allowed-origins}") String allowedOrigins) {
         this.allowedOrigins = Arrays.stream(allowedOrigins.split(","))
 				.map(String::trim)
 				.filter(origin ->!origin.isEmpty())
