@@ -113,7 +113,7 @@
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 				<configuration>
-					<mainClass>com.sirket.auth.AuthServiceApplication</mainClass>
+					<mainClass>com.documind.auth.AuthServiceApplication</mainClass>
 				</configuration>
 			</plugin>
 			<plugin>
