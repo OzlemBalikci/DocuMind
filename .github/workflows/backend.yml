@@ -4,7 +4,13 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - "src/**"
+      - "platform-common/**"
+      - "user-service/**"
+      - "document-service/**"
+      - "chat-service/**"
+      - "ingestion-worker/**"
+      - "gateway/**"
+      - "keycloak/**"
       - "pom.xml"
       - "mvnw"
       - "mvnw.cmd"
@@ -13,7 +19,13 @@ on:
   push:
     branches: [main]
     paths:
-      - "src/**"
+      - "platform-common/**"
+      - "user-service/**"
+      - "document-service/**"
+      - "chat-service/**"
+      - "ingestion-worker/**"
+      - "gateway/**"
+      - "keycloak/**"
       - "pom.xml"
       - "mvnw"
       - "mvnw.cmd"
@@ -27,7 +39,6 @@ concurrency:
 
 env:
   LLM_PROVIDER: mock
-  JWT_SECRET: ci-test-jwt-secret-minimum-32-characters-long
 
 jobs:
   backend-test:
@@ -44,7 +55,6 @@ jobs:
           java-version: "21"
           cache: maven
 
-      # Must set java-version; action default is 8/17 and breaks release 21 compile
       - name: Set up Maven
         uses: s4u/setup-maven-action@v1.20.0
         with:
@@ -61,6 +71,6 @@ jobs:
         with:
           name: backend-test-reports
           path: |
-            target/surefire-reports/
-            target/site/jacoco/
+            **/target/surefire-reports/
+            **/target/site/jacoco/
           if-no-files-found: ignore

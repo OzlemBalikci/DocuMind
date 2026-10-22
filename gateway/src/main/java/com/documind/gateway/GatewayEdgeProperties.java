@@ -6,17 +6,17 @@ import org.springframework.util.unit.DataSize;
 @ConfigurationProperties(prefix = "app.gateway")
 public class GatewayEdgeProperties {
 
-	private String authUri = "http://localhost:8081";
+	private String userUri = "http://localhost:8081";
 	private String documentUri = "http://localhost:8082";
 	private String chatUri = "http://localhost:8083";
 	private DataSize maxRequestSize = DataSize.ofMegabytes(2);
 
-	public String getAuthUri() {
-		return authUri;
+	public String getUserUri() {
+		return userUri;
 	}
 
-	public void setAuthUri(String authUri) {
-		this.authUri = authUri;
+	public void setUserUri(String userUri) {
+		this.userUri = userUri;
 	}
 
 	public String getDocumentUri() {

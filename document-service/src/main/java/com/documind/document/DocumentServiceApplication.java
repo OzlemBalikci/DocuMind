@@ -5,8 +5,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication(scanBasePackages = {
 		"com.documind.document",
-		"com.documind.backend.common",
-		"com.documind.common"
+		"com.documind.backend.common"
 })
 public class DocumentServiceApplication {
 

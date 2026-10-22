@@ -1,0 +1,234 @@
+{
+  "id": "8f1a7c2e-4b3d-4e9a-9c1f-2a6b8d0e5f11",
+  "realm": "documind",
+  "displayName": "DocuMind",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": true,
+  "registrationEmailAsUsername": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "rememberMe": true,
+  "verifyEmail": true,
+  "loginTheme": "keycloak",
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "maxFailureWaitSeconds": 900,
+  "minimumQuickLoginWaitSeconds": 60,
+  "waitIncrementSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "maxDeltaTimeSeconds": 43200,
+  "failureFactor": 5,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 604800,
+  "clientSessionIdleTimeout": 1800,
+  "clientSessionMaxLifespan": 604800,
+  "offlineSessionIdleTimeout": 2592000,
+  "accessCodeLifespan": 60,
+  "accessCodeLifespanUserAction": 300,
+  "accessCodeLifespanLogin": 1800,
+  "actionTokenGeneratedByUserLifespan": 300,
+  "revokeRefreshToken": true,
+  "refreshTokenMaxReuse": 0,
+  "passwordPolicy": "length(8) and upperCase(1) and lowerCase(1) and digits(1) and specialChars(1) and notEmail",
+  "roles": {
+    "realm": [
+      {
+        "id": "a11c0e01-6b21-4d3a-9f44-7c8d9e0a1b12",
+        "name": "USER",
+        "description": "Default application user",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "id": "b22d1f12-7c32-4e4b-8a55-8d9e0f1b2c23",
+        "name": "ADMIN",
+        "description": "Application administrator",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "id": "c33e2013-8d43-4f5c-9b66-9e0f1a2c3d34",
+        "name": "SERVICE",
+        "description": "Service-to-service account",
+        "composite": false,
+        "clientRole": false
+      }
+    ]
+  },
+  "defaultRole": {
+    "id": "d44f3124-9e54-406d-ac77-0f1a2b3c4d45",
+    "name": "default-roles-documind",
+    "description": "${role_default-roles}",
+    "composite": true,
+    "clientRole": false,
+    "containerId": "8f1a7c2e-4b3d-4e9a-9c1f-2a6b8d0e5f11",
+    "composites": {
+      "realm": ["offline_access", "uma_authorization", "USER"]
+    }
+  },
+  "clients": [
+    {
+      "id": "e55a4235-0f65-417e-bd88-1a2b3c4d5e56",
+      "clientId": "documind-web",
+      "name": "DocuMind SPA",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "rootUrl": "http://localhost:5199",
+      "baseUrl": "/",
+      "redirectUris": ["http://localhost:5199/*"],
+      "webOrigins": ["http://localhost:5199"],
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": true,
+      "fullScopeAllowed": true,
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:5199/*"
+      },
+      "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "email"],
+      "optionalClientScopes": ["offline_access"],
+      "protocolMappers": [
+        {
+          "name": "audience-documind-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "documind-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "email",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "email",
+            "claim.name": "email",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "full name",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-full-name-mapper",
+          "consentRequired": false,
+          "config": {
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "auth_time",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usersessionmodel-note-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.session.note": "AUTH_TIME",
+            "claim.name": "auth_time",
+            "jsonType.label": "int",
+            "id.token.claim": "true",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "id": "f66b5346-1a76-428f-ce99-2b3c4d5e6f67",
+      "clientId": "user-service-admin",
+      "name": "user-service admin",
+      "enabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "clientAuthenticatorType": "client-secret",
+      "secret": "local-dev-user-service-admin-secret",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": false,
+      "frontchannelLogout": false,
+      "fullScopeAllowed": true,
+      "defaultClientScopes": ["web-origins", "roles", "profile", "email"],
+      "protocolMappers": [
+        {
+          "name": "audience-documind-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "documind-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "id": "a77c6457-2b87-4390-df00-3c4d5e6f7089",
+      "clientId": "user-service-internal",
+      "name": "user-service internal",
+      "enabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "clientAuthenticatorType": "client-secret",
+      "secret": "local-dev-user-service-internal-secret",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": false,
+      "frontchannelLogout": false,
+      "fullScopeAllowed": true,
+      "defaultClientScopes": ["web-origins", "roles", "profile", "email"],
+      "protocolMappers": [
+        {
+          "name": "audience-documind-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "documind-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "service-account-user-service-admin",
+      "enabled": true,
+      "emailVerified": true,
+      "serviceAccountClientId": "user-service-admin",
+      "realmRoles": ["SERVICE"],
+      "clientRoles": {
+        "realm-management": ["manage-users"]
+      }
+    },
+    {
+      "username": "service-account-user-service-internal",
+      "enabled": true,
+      "emailVerified": true,
+      "serviceAccountClientId": "user-service-internal",
+      "realmRoles": ["SERVICE"]
+    }
+  ]
+}

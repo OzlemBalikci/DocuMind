@@ -1,4 +1,6 @@
 package com.documind.common.messaging;
 
-public record DocumentUploadedEvent(long documentId, long userId) {
+import java.util.UUID;
+
+public record DocumentUploadedEvent(UUID documentId, UUID ownerId) {
 }

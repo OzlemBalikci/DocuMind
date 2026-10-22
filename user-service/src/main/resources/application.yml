@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: user-service
+  config:
+    import: optional:file:.env[.properties]
+  profiles:
+    default: local
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER:http://localhost:8180/realms/documind}
+
+server:
+  forward-headers-strategy: framework
+
+app:
+  security:
+    audience: ${KEYCLOAK_AUDIENCE:documind-api}
+    protect-internal: true
+  account:
+    reauth-max-age: 5m
+    default-quota-limit: 100
+  outbox:
+    poll-interval: 2s
+    batch-size: 20
+    max-attempts: 10
+  deletion:
+    reconcile-interval: 30s
+    stuck-after: 10m

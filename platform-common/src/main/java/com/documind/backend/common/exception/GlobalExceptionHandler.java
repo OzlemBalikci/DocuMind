@@ -144,10 +144,6 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(DataIntegrityViolationException.class)
 	public ResponseEntity<ApiError> handleDataIntegrity(DataIntegrityViolationException ex, HttpServletRequest request) {
-		if (isDuplicateUserEmail(ex)) {
-			log.debug("Duplicate email on {} {}", request.getMethod(), request.getRequestURI());
-			return build(ErrorCode.EMAIL_ALREADY_EXISTS, request);
-		}
 		log.warn("Data integrity violation on {} {}", request.getMethod(), request.getRequestURI(), ex);
 		return build(ErrorCode.CONCURRENT_MODIFICATION, request);
 	}
@@ -238,17 +234,6 @@ public class GlobalExceptionHandler {
 		String path = violation.getPropertyPath().toString();
 		int lastDot = path.lastIndexOf('.');
 		return lastDot >= 0 ? path.substring(lastDot + 1) : path;
-	}
-
-	private static boolean isDuplicateUserEmail(DataIntegrityViolationException ex) {
-		String message = ex.getMostSpecificCause().getMessage();
-		if (message == null) {
-			return false;
-		}
-		String lower = message.toLowerCase();
-		return lower.contains("ux_users_email")
-				|| lower.contains("duplicate key")
-				|| (lower.contains("users") && lower.contains("email"));
 	}
 
 	private ResponseEntity<ApiError> build(ErrorCode code, HttpServletRequest request) {
