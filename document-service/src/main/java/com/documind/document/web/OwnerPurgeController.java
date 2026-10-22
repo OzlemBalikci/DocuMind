@@ -1,6 +1,6 @@
 package com.documind.document.web;
 
-import com.documind.document.repository.DocumentRepository;
+import com.documind.document.document.repository.DocumentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;

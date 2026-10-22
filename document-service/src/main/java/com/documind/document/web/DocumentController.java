@@ -1,8 +1,8 @@
 package com.documind.document.web;
 
 import com.documind.backend.common.exception.NotFoundException;
-import com.documind.document.entity.Document;
-import com.documind.document.repository.DocumentRepository;
+import com.documind.document.document.entity.Document;
+import com.documind.document.document.repository.DocumentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -47,10 +47,10 @@ public class DocumentController {
 		static DocumentResponse from(Document document) {
 			return new DocumentResponse(
 					document.getId(),
-					document.getFileName(),
+					document.getOriginalFilename(),
 					document.getContentType(),
 					document.getSizeBytes(),
-					document.getStatus());
+					document.getStatus().name());
 		}
 	}
 }
