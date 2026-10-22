@@ -1,3 +1,5 @@
+CREATE EXTENSION IF NOT EXISTS vector;
+
 CREATE TABLE document_chunks (
     id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     document_id  UUID NOT NULL REFERENCES documents (id) ON DELETE CASCADE,
