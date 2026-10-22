@@ -3,10 +3,11 @@ package com.documind.document.document.repository;
 import com.documind.document.document.domain.DocumentStatus;
 
 import java.time.Instant;
+import java.util.UUID;
 
 public interface DocumentSummary {
 
-	Long getId();
+	UUID getId();
 	String getTitle();
 	String getOriginalFilename();
 	String getContentType();

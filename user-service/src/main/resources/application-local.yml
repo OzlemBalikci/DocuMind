@@ -1,0 +1,33 @@
+server:
+  port: 8081
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:${POSTGRES_PORT:5435}/user_db
+    username: ${local.postgres.username:${SPRING_DATASOURCE_USERNAME:documind_app}}
+    password: ${local.postgres.password:${SPRING_DATASOURCE_PASSWORD:}}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:}
+
+app:
+  keycloak:
+    admin-base-url: ${KEYCLOAK_ADMIN_BASE_URL:http://localhost:8180}
+    token-uri: ${KEYCLOAK_TOKEN_URI:http://localhost:8180/realms/documind/protocol/openid-connect/token}
+    realm: documind
+    admin:
+      client-id: ${KEYCLOAK_USER_SERVICE_CLIENT_ID:user-service-admin}
+      client-secret: ${KEYCLOAK_USER_SERVICE_CLIENT_SECRET:local-dev-user-service-admin-secret}
+    internal:
+      client-id: ${KEYCLOAK_USER_SERVICE_INTERNAL_CLIENT_ID:user-service-internal}
+      client-secret: ${KEYCLOAK_USER_SERVICE_INTERNAL_SECRET:local-dev-user-service-internal-secret}
+  clients:
+    document-base-url: ${DOCUMENT_SERVICE_URI:http://localhost:8082}
+    chat-base-url: ${CHAT_SERVICE_URI:http://localhost:8083}

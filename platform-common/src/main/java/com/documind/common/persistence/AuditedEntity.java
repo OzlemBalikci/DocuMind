@@ -2,22 +2,28 @@ package com.documind.common.persistence;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.MappedSuperclass;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import lombok.Getter;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
 
 @Getter
 @MappedSuperclass
-public abstract class AuditedEntity extends BaseEntity {
+public abstract class AuditedEntity extends CreatedAtEntity {
 
-	@CreationTimestamp
-	@Column(name = "created_at", nullable = false, updatable = false)
-	private Instant createdAt;
-
-	@UpdateTimestamp
 	@Column(name = "updated_at", nullable = false)
-	private Instant updatedAt;
+	protected Instant updatedAt;
 
+	@PrePersist
+	protected void onAuditCreate() {
+		if (updatedAt == null) {
+			updatedAt = createdAt != null ? createdAt : Instant.now();
+		}
+	}
+
+	@PreUpdate
+	protected void onUpdate() {
+		updatedAt = Instant.now();
+	}
 }

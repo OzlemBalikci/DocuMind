@@ -3,6 +3,7 @@ package com.documind.gateway.ratelimit;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
@@ -14,7 +15,7 @@ import java.util.Map;
 @ConfigurationProperties(prefix = "app.edge.rate-limit")
 public record RateLimitProperties(
     @NotBlank String redisUri,
-    @NotBlank Map<String, @Valid Policy> policies)  {
+    @NotEmpty Map<String, @Valid Policy> policies)  {
 
     public record Policy(
             @Min(1) int capacity,

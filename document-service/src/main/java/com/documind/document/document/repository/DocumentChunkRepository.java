@@ -10,32 +10,33 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.UUID;
 
-public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, Long> {
+public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, UUID> {
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from DocumentChunk c where c.document.id = :documentId")
-    int deleteByDocumentId(@Param("documentId") Long documentId);
+    int deleteByDocumentId(@Param("documentId") UUID documentId);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("update DocumentChunk c set c.embedding = null where c.document.id = :documentId")
-    int clearEmbeddings(@Param("documentId") Long documentId);
+    int clearEmbeddings(@Param("documentId") UUID documentId);
 
     @Query("""
             select c from DocumentChunk  c
             where c.document.id = :documentId and c.embedding is null
             order by c.chunkIndex
            """)
-    List<DocumentChunk> findPendingEmbedding(@Param("documentId") Long documentId, Pageable pageable);
+    List<DocumentChunk> findPendingEmbedding(@Param("documentId") UUID documentId, Pageable pageable);
 
     @Query("select count(c) from DocumentChunk c where c.document.id = :documentId and c.embedding is null")
-    long countPendingEmbedding(@Param("documentId") Long documentId);
+    long countPendingEmbedding(@Param("documentId") UUID documentId);
 
-    long countByDocumentId(Long documentId);
+    long countByDocumentId(UUID documentId);
 
-    List<DocumentChunk> findByDocumentIdOrderByChunkIndex(Long documentId);
+    List<DocumentChunk> findByDocumentIdOrderByChunkIndex(UUID documentId);
 
-    List<DocumentChunk> findByDocumentIdAndChunkIndexBetweenOrderByChunkIndex(Long documentId, int fromIndex, int toIndex);
+    List<DocumentChunk> findByDocumentIdAndChunkIndexBetweenOrderByChunkIndex(UUID documentId, int fromIndex, int toIndex);
 
     @Query(value = """
             SELECT c.id          AS "chunkId",
@@ -47,13 +48,13 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, Lo
                    1 - (c.embedding <=> CAST(:queryVector AS vector)) AS "score"
               FROM document_chunks c
               JOIN documents d ON d.id = c.document_id
-             WHERE d.user_id = :userId
+             WHERE d.owner_id = :ownerId
                AND d.status = 'READY'
                AND c.embedding IS NOT NULL
              ORDER BY c.embedding <=> CAST(:queryVector AS vector)
              LIMIT :limit
             """, nativeQuery = true)
-    List<ChunkSearchHit> searchByUser(@Param("userId") Long userId,
+    List<ChunkSearchHit> searchByUser(@Param("ownerId") UUID ownerId,
                                       @Param("queryVector") String queryVector,
                                       @Param("limit") int limit);
 
@@ -67,25 +68,25 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, Lo
                    1 - (c.embedding <=> CAST(:queryVector AS vector)) AS "score"
               FROM document_chunks c
               JOIN documents d ON d.id = c.document_id
-             WHERE d.user_id = :userId
+             WHERE d.owner_id = :ownerId
                AND d.status = 'READY'
                AND c.document_id IN (:documentIds)
                AND c.embedding IS NOT NULL
              ORDER BY c.embedding <=> CAST(:queryVector AS vector)
              LIMIT :limit
             """, nativeQuery = true)
-    List<ChunkSearchHit> searchInDocuments(@Param("userId") Long userId,
-                                           @Param("documentIds") Collection<Long> documentIds,
+    List<ChunkSearchHit> searchInDocuments(@Param("ownerId") UUID ownerId,
+                                           @Param("documentIds") Collection<UUID> documentIds,
                                            @Param("queryVector") String queryVector,
                                            @Param("limit") int limit);
 
-    default List<ChunkSearchHit> searchByUser(Long userId, float[] queryVector, int limit) {
-        return searchByUser(userId, toVectorLiteral(queryVector), limit);
+    default List<ChunkSearchHit> searchByUser(UUID ownerId, float[] queryVector, int limit) {
+        return searchByUser(ownerId, toVectorLiteral(queryVector), limit);
     }
 
-    default List<ChunkSearchHit> searchInDocuments(Long userId, Collection<Long> documentIds,
+    default List<ChunkSearchHit> searchInDocuments(UUID ownerId, Collection<UUID> documentIds,
                                                    float[] queryVector, int limit) {
-        return searchInDocuments(userId, documentIds, toVectorLiteral(queryVector), limit);
+        return searchInDocuments(ownerId, documentIds, toVectorLiteral(queryVector), limit);
     }
 
     static String toVectorLiteral(float[] v) {

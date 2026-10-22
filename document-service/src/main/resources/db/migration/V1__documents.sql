@@ -1,6 +1,6 @@
 CREATE TABLE documents (
-    id                 BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    user_id            BIGINT       NOT NULL,
+    id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_id           UUID         NOT NULL,
     title              VARCHAR(255) NOT NULL,
     original_filename  VARCHAR(255) NOT NULL,
     content_type       VARCHAR(100) NOT NULL,
@@ -18,8 +18,8 @@ CREATE TABLE documents (
     CONSTRAINT chk_documents_status CHECK (status IN ('PENDING', 'PARSING', 'EMBEDDING', 'READY', 'FAILED')),
     CONSTRAINT chk_documents_type   CHECK (content_type IN ('application/pdf', 'text/plain', 'text/markdown')),
     CONSTRAINT chk_documents_size   CHECK (size_bytes > 0),
-    CONSTRAINT ux_documents_user_checksum UNIQUE (user_id, checksum_sha256)
+    CONSTRAINT ux_documents_owner_checksum UNIQUE (owner_id, checksum_sha256)
 );
 
-CREATE INDEX ix_documents_user_created ON documents (user_id, created_at DESC);
+CREATE INDEX ix_documents_owner_created ON documents (owner_id, created_at DESC);
 CREATE INDEX ix_documents_status_created ON documents (status, created_at);

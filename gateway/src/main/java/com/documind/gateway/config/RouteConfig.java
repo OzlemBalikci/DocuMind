@@ -30,54 +30,9 @@ public class RouteConfig {
 
 	@Bean
 	RouterFunction<ServerResponse> gatewayRoutes(GatewayEdgeProperties properties) {
-		return login(properties)
-				.and(register(properties))
-				.and(passwordReset(properties))
-				.and(refresh(properties))
-				.and(proxy("auth", "/api/auth/**", properties.getAuthUri(), "auth", properties, false))
-				.and(proxy("documents", "/api/documents/**", properties.getDocumentUri(), "documents", properties, false))
-				.and(proxy("chat", "/api/chat/**", properties.getChatUri(), "chat", properties, true));
-	}
-
-	private RouterFunction<ServerResponse> login(GatewayEdgeProperties properties) {
-		return edge("auth-login", properties)
-				.POST("/api/auth/login", HandlerFunctions.http())
-				.before(BeforeFilterFunctions.uri(properties.getAuthUri()))
-				.filter(rateLimits.of("login"))
-				.filter(resilience.breaker("auth-login"))
-				.after(cors::stripDownstreamCors)
-				.build();
-	}
-
-	private RouterFunction<ServerResponse> register(GatewayEdgeProperties properties) {
-		return edge("auth-register", properties)
-				.POST("/api/auth/register", HandlerFunctions.http())
-				.before(BeforeFilterFunctions.uri(properties.getAuthUri()))
-				.filter(rateLimits.of("register"))
-				.filter(resilience.breaker("auth"))
-				.after(cors::stripDownstreamCors)
-				.build();
-	}
-
-	private RouterFunction<ServerResponse> passwordReset(GatewayEdgeProperties properties) {
-		return edge("auth-password-reset", properties)
-				.route(RequestPredicates.path("/api/auth/forgot-password")
-						.or(RequestPredicates.path("/api/auth/reset-password")), HandlerFunctions.http())
-				.before(BeforeFilterFunctions.uri(properties.getAuthUri()))
-				.filter(rateLimits.of("password-reset"))
-				.filter(resilience.breaker("auth"))
-				.after(cors::stripDownstreamCors)
-				.build();
-	}
-
-	private RouterFunction<ServerResponse> refresh(GatewayEdgeProperties properties) {
-		return edge("auth-refresh", properties)
-				.POST("/api/auth/refresh", HandlerFunctions.http())
-				.before(BeforeFilterFunctions.uri(properties.getAuthUri()))
-				.filter(rateLimits.of("refresh"))
-				.filter(resilience.breaker("auth"))
-				.after(cors::stripDownstreamCors)
-				.build();
+		return proxy("users", "/api/users/**", properties.getUserUri(), "users", properties, "users")
+				.and(proxy("documents", "/api/documents/**", properties.getDocumentUri(), "documents", properties, "documents"))
+				.and(proxy("chat", "/api/chat/**", properties.getChatUri(), "chat", properties, "chat"));
 	}
 
 	private RouterFunction<ServerResponse> proxy(String id,
@@ -85,12 +40,12 @@ public class RouteConfig {
 			String uri,
 			String breakerId,
 			GatewayEdgeProperties properties,
-			boolean rateLimited) {
+			String rateLimitPolicy) {
 		RouterFunctions.Builder route = edge(id, properties)
 				.route(RequestPredicates.path(pattern), HandlerFunctions.http())
 				.before(BeforeFilterFunctions.uri(uri));
-		if (rateLimited) {
-			route = route.filter(rateLimits.of("chat"));
+		if (rateLimitPolicy != null) {
+			route = route.filter(rateLimits.of(rateLimitPolicy));
 		}
 		return route
 				.filter(resilience.breaker(breakerId))

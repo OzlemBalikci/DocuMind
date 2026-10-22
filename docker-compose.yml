@@ -56,7 +56,6 @@ services:
       retries: 5
 
   minio:
-    # minio/minio was removed from Docker Hub; Chainguard publishes a maintained replacement.
     image: cgr.dev/chainguard/minio:latest
     container_name: documind-minio
     restart: unless-stopped
@@ -69,28 +68,78 @@ services:
     volumes:
       - minio_data:/data
 
-  auth-service:
+  keycloak-db:
+    image: postgres:16
+    container_name: documind-keycloak-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: ${KC_DB_PASSWORD:?Set KC_DB_PASSWORD in .env}
+    volumes:
+      - kc-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: documind-keycloak
+    restart: unless-stopped
+    command: start-dev --import-realm
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KC_DB_PASSWORD:?Set KC_DB_PASSWORD in .env}
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:?Set KC_ADMIN_PASSWORD in .env}
+      KC_HOSTNAME: http://localhost:8180
+      KC_HOSTNAME_STRICT: false
+      KC_HTTP_ENABLED: true
+    ports:
+      - "8180:8080"
+    volumes:
+      - ./keycloak/realm-documind.json:/opt/keycloak/data/import/realm-documind.json
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/127.0.0.1/8080'"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+  user-service:
     build:
       context: .
       dockerfile: Dockerfile
       args:
-        MODULE: auth-service
-    container_name: documind-auth
+        MODULE: user-service
+    container_name: documind-user
     restart: unless-stopped
     ports:
-      - "${AUTH_PORT:-8082}:8081"
+      - "${USER_PORT:-8081}:8081"
     env_file: .env
     environment:
       SPRING_PROFILES_ACTIVE: local
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/auth_db
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/user_db
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
-      SPRING_DATA_REDIS_HOST: redis
+      KEYCLOAK_ISSUER: http://localhost:8180/realms/documind
+      KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/documind/protocol/openid-connect/certs
+      KEYCLOAK_ADMIN_BASE_URL: http://keycloak:8080
+      KEYCLOAK_TOKEN_URI: http://keycloak:8080/realms/documind/protocol/openid-connect/token
+      DOCUMENT_SERVICE_URI: http://document-service:8082
+      CHAT_SERVICE_URI: http://chat-service:8083
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
+      keycloak:
+        condition: service_started
 
   document-service:
     build:
@@ -107,16 +156,17 @@ services:
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       SPRING_RABBITMQ_HOST: rabbitmq
-      SPRING_DATA_REDIS_HOST: redis
       MINIO_ENDPOINT: http://minio:9000
+      KEYCLOAK_ISSUER: http://localhost:8180/realms/documind
+      KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/documind/protocol/openid-connect/certs
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
       minio:
+        condition: service_started
+      keycloak:
         condition: service_started
 
   ingestion-worker:
@@ -154,12 +204,13 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/chat_db
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
-      SPRING_DATA_REDIS_HOST: redis
+      KEYCLOAK_ISSUER: http://localhost:8180/realms/documind
+      KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/documind/protocol/openid-connect/certs
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
+      keycloak:
+        condition: service_started
 
   gateway:
     build:
@@ -175,16 +226,21 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: local
       PORT: 8087
-      AUTH_SERVICE_URI: http://auth-service:8081
+      USER_SERVICE_URI: http://user-service:8081
       DOCUMENT_SERVICE_URI: http://document-service:8082
       CHAT_SERVICE_URI: http://chat-service:8083
+      KEYCLOAK_ISSUER: http://localhost:8180/realms/documind
+      KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/documind/protocol/openid-connect/certs
+      REDIS_URI: redis://redis:6379
     depends_on:
-      - auth-service
+      - user-service
       - document-service
       - chat-service
+      - redis
 
 volumes:
   documind_ms_pgdata:
   redis_data:
   rabbitmq_data:
   minio_data:
+  kc-data:

@@ -1,35 +1,49 @@
 package com.documind.chat.entity;
 
+import com.documind.common.persistence.CreatedAtEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import lombok.AccessLevel;
 import lombok.Getter;
-import org.hibernate.annotations.CreationTimestamp;
+import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
-import java.time.Instant;
+import java.util.UUID;
 
 @Entity
 @Table(name = "messages")
 @Getter
-public class Message {
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class Message extends CreatedAtEntity {
 
 	@Id
-	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	private Long id;
+	@GeneratedValue(strategy = GenerationType.UUID)
+	private UUID id;
 
 	@Column(name = "conversation_id", nullable = false)
-	private Long conversationId;
+	private UUID conversationId;
 
-	@Column(nullable = false, length = 20)
+	@Column(nullable = false, length = 10)
 	private String role;
 
 	@Column(nullable = false, columnDefinition = "text")
 	private String content;
 
-	@CreationTimestamp
-	@Column(name = "created_at", nullable = false, updatable = false)
-	private Instant createdAt;
+	@JdbcTypeCode(SqlTypes.JSON)
+	@Column(columnDefinition = "jsonb")
+	private String citations;
+
+	public static Message create(UUID conversationId, String role, String content, String citations) {
+		Message message = new Message();
+		message.conversationId = conversationId;
+		message.role = role;
+		message.content = content;
+		message.citations = citations;
+		return message;
+	}
 }

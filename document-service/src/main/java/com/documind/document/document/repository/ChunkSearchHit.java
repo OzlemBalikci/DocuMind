@@ -1,12 +1,13 @@
 package com.documind.document.document.repository;
 
+import java.util.UUID;
 
 public interface ChunkSearchHit {
-    Long getChunkId();
-    Long getDocumentId();
-    String getTitle();
-    Integer getChunkIndex();
-    Integer getPageNumber();
-    String getContent();
-    Double getScore();
+	UUID getChunkId();
+	UUID getDocumentId();
+	String getTitle();
+	Integer getChunkIndex();
+	Integer getPageNumber();
+	String getContent();
+	Double getScore();
 }

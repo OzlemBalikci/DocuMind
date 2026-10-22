@@ -1,8 +1,8 @@
-\connect auth_db
-TRUNCATE TABLE password_reset_codes, refresh_tokens, users RESTART IDENTITY CASCADE;
+\connect user_db
+TRUNCATE TABLE user_profiles;
 
 \connect document_db
-TRUNCATE TABLE documents RESTART IDENTITY CASCADE;
+TRUNCATE TABLE documents;
 
 \connect chat_db
-TRUNCATE TABLE messages, conversations RESTART IDENTITY CASCADE;
+TRUNCATE TABLE messages, conversations;

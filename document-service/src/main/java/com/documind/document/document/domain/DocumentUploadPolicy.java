@@ -71,12 +71,12 @@ public class DocumentUploadPolicy {
 		return value;
 	}
 
-	public String storagePath(long userId, String originalFilename) {
+	public String storagePath(UUID ownerId, String originalFilename) {
 		String name = originalFilename.replaceAll("[^A-Za-z0-9._-]", "_");
 		if (name.isBlank() || name.equals(".") || name.equals("..")) {
 			name = "document";
 		}
-		String prefix = userId + "/" + UUID.randomUUID() + "/";
+		String prefix = ownerId + "/" + UUID.randomUUID() + "/";
 		int room = 500 - prefix.length();
 		if (name.length() > room) {
 			name = name.substring(0, Math.max(room, 1));

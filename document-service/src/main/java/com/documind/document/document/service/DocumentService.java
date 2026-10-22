@@ -5,13 +5,15 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.UUID;
+
 public interface DocumentService {
 
-	DocumentResponse upload(long userId, MultipartFile file, String title);
+	DocumentResponse upload(UUID ownerId, MultipartFile file, String title);
 
-	Page<DocumentResponse> list(long userId, Pageable pageable);
+	Page<DocumentResponse> list(UUID ownerId, Pageable pageable);
 
-	DocumentResponse get(long userId, long documentId);
+	DocumentResponse get(UUID ownerId, UUID documentId);
 
-	void delete(long userId, long documentId);
+	void delete(UUID ownerId, UUID documentId);
 }

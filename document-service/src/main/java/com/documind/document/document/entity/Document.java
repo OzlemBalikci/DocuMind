@@ -6,8 +6,10 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -15,6 +17,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
+import java.util.UUID;
 
 @Entity
 @Table(name = "documents")
@@ -22,8 +25,12 @@ import java.time.Instant;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Document extends AuditedEntity {
 
-	@Column(name = "user_id", nullable = false, updatable = false)
-	private Long userId;
+	@Id
+	@GeneratedValue(strategy = GenerationType.UUID)
+	private UUID id;
+
+	@Column(name = "owner_id", nullable = false, updatable = false)
+	private UUID ownerId;
 
 	@Column(nullable = false, length = 255)
 	private String title;
@@ -64,7 +71,7 @@ public class Document extends AuditedEntity {
 	private Instant indexedAt;
 
 	public static Document pending(
-			Long userId,
+			UUID ownerId,
 			String title,
 			String originalFilename,
 			String contentType,
@@ -72,7 +79,7 @@ public class Document extends AuditedEntity {
 			String checksumSha256,
 			String storagePath) {
 		Document document = new Document();
-		document.userId = userId;
+		document.ownerId = ownerId;
 		document.title = title;
 		document.originalFilename = originalFilename;
 		document.contentType = contentType;
