@@ -1,5 +1,6 @@
 package com.documind.user.deletion;
 
+import com.documind.user.common.DownstreamProperties;
 import com.documind.user.common.DownstreamPurgeException;
 import com.documind.user.keycloak.KeycloakAdminClient;
 import com.documind.user.keycloak.ServiceTokenProvider;

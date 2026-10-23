@@ -6,17 +6,15 @@ import java.util.UUID;
 
 public record QuotaResponse(
 		UUID id,
-		String email,
-		String fullName,
 		int quotaLimit,
-		int quotaUsed) {
+		int quotaUsed,
+		int quotaRemaining) {
 
 	public static QuotaResponse from(UserProfile profile) {
 		return new QuotaResponse(
 				profile.getId(),
-				profile.getEmail(),
-				profile.getFullName(),
 				profile.getQuotaLimit(),
-				profile.getQuotaUsed());
+				profile.getQuotaUsed(),
+				profile.getQuotaLimit() - profile.getQuotaUsed());
 	}
 }

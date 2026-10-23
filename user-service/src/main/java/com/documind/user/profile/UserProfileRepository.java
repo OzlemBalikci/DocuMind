@@ -14,8 +14,10 @@ public interface UserProfileRepository extends JpaRepository<UserProfile, UUID> 
 	@Modifying
 	@Transactional
 	@Query(value = """
+			-- Same id waits on this lock, so the email unique index still rejects a different user.
 			insert into user_profiles (id, email, full_name, quota_limit, quota_used, created_at, updated_at)
-			values (:id, :email, :name, :limit, 0, now(), now())
+			select :id, :email, :name, :limit, 0, now(), now()
+			from (select pg_advisory_xact_lock(hashtextextended(cast(:id as text), 0))) as lock
 			on conflict (id) do nothing
 			""", nativeQuery = true)
 	int insertIfAbsent(

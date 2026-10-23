@@ -28,6 +28,5 @@ app:
     poll-interval: 2s
     batch-size: 20
     max-attempts: 10
-  deletion:
     reconcile-interval: 30s
     stuck-after: 10m

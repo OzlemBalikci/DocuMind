@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.Duration;
@@ -30,6 +31,7 @@ public class AccountDeletionService {
 		this.reauthMaxAge = reauthMaxAge;
 	}
 
+	@Transactional
 	public void request(Jwt jwt) {
 		requireRecentLogin(jwt);
 		UUID id = UUID.fromString(jwt.getSubject());
