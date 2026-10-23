@@ -73,7 +73,7 @@ public class OutboxRelay {
 			log.warn("Outbox {} failed", claim.id(), ex);
 			transaction.executeWithoutResult(status -> outbox.findById(claim.id()).ifPresent(event -> {
 				event.markFailed(truncate(ex.getMessage()), retryAt(event.getAttempts() + 1), maxAttempts);
-				if (event.getStatus() == OutboxEvent.Status.DEAD) {
+				if (event.getStatus() == OutboxStatus.DEAD) {
 					log.error("Outbox {} moved to DEAD after {} attempts", event.getId(), event.getAttempts());
 				}
 			}));

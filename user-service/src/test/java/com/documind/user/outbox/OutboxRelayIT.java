@@ -104,7 +104,7 @@ class OutboxRelayIT {
 		assertThat(pool.awaitTermination(30, TimeUnit.SECONDS)).isTrue();
 
 		OutboxEvent stored = outbox.findByAggregateIdAndEventType(owner, OutboxEvent.Type.USER_DELETED).orElseThrow();
-		assertThat(stored.getStatus()).isEqualTo(OutboxEvent.Status.PROCESSED);
+		assertThat(stored.getStatus()).isEqualTo(OutboxStatus.PROCESSED);
 		WIRE_MOCK.verify(1, deleteRequestedFor(urlMatching("/admin/realms/documind/users/" + owner)));
 	}
 
@@ -118,13 +118,13 @@ class OutboxRelayIT {
 			relay.relay();
 			tx.executeWithoutResult(status -> outbox.findByAggregateIdAndEventType(owner, OutboxEvent.Type.USER_DELETED)
 					.ifPresent(event -> {
-						if (event.getStatus() == OutboxEvent.Status.FAILED) {
+						if (event.getStatus() == OutboxStatus.FAILED) {
 							event.recover();
 						}
 					}));
 		}
 		OutboxEvent stored = outbox.findByAggregateIdAndEventType(owner, OutboxEvent.Type.USER_DELETED).orElseThrow();
-		assertThat(stored.getStatus()).isEqualTo(OutboxEvent.Status.DEAD);
+		assertThat(stored.getStatus()).isEqualTo(OutboxStatus.DEAD);
 		assertThat(stored.getAttempts()).isEqualTo(3);
 	}
 
