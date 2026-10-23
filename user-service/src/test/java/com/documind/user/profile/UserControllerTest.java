@@ -100,6 +100,20 @@ class UserControllerTest {
 	}
 
 	@Test
+	void duplicateEmailIsRejected() throws Exception {
+		UUID first = UUID.fromString("11111111-1111-1111-1111-111111111111");
+		UUID second = UUID.fromString("22222222-2222-2222-2222-222222222222");
+		String shared = "shared@example.com";
+		mockMvc.perform(get("/api/users/me").with(userJwt(first, shared)))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.email").value(shared));
+		mockMvc.perform(get("/api/users/me").with(userJwt(second, shared)))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.code").value("CONCURRENT_MODIFICATION"));
+		assertThat(profiles.findById(second)).isEmpty();
+	}
+
+	@Test
 	void adminEndpointForbiddenForUser() throws Exception {
 		UUID id = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
 		mockMvc.perform(get("/api/users").with(userJwt(id)))
@@ -155,9 +169,13 @@ class UserControllerTest {
 	}
 
 	private static RequestPostProcessor userJwt(UUID id) {
+		return userJwt(id, email(id));
+	}
+
+	private static RequestPostProcessor userJwt(UUID id, String email) {
 		return jwt().jwt(token -> token
 						.subject(id.toString())
-						.claim("email", email(id))
+						.claim("email", email)
 						.claim("name", "Ada Lovelace")
 						.claim("realm_access", Map.of("roles", List.of("USER"))))
 				.authorities(new SimpleGrantedAuthority("ROLE_USER"));

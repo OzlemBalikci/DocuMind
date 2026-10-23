@@ -35,16 +35,6 @@ public class UserProfile extends AuditedEntity {
 	@Column(name = "quota_used", nullable = false)
 	private int quotaUsed = 0;
 
-	public static UserProfile create(UUID id, String email, String fullName, int quotaLimit) {
-		UserProfile profile = new UserProfile();
-		profile.id = id;
-		profile.email = email;
-		profile.fullName = fullName;
-		profile.quotaLimit = quotaLimit;
-		profile.quotaUsed = 0;
-		return profile;
-	}
-
 	void refresh(String email, String fullName) {
 		if (!Objects.equals(this.email, email)) this.email = email;
 		if (!Objects.equals(this.fullName, fullName)) this.fullName = fullName;

@@ -25,58 +25,48 @@ public class KeycloakAdminClient {
 	}
 
 	public void disableUser(UUID id) {
-		try {
-			restClient.put()
-					.uri(properties.getAdminBaseUrl() + "/admin/realms/{realm}/users/{id}",
-							properties.getRealm(), id)
-					.headers(headers -> headers.setBearerAuth(tokens.accessToken()))
-					.contentType(MediaType.APPLICATION_JSON)
-					.body(Map.of("enabled", false))
-					.retrieve()
-					.toBodilessEntity();
-		} catch (RestClientResponseException ex) {
-			if (ex.getStatusCode() == HttpStatus.NOT_FOUND) {
-				return;
-			}
-			throw new KeycloakAdminException("Could not disable Keycloak user " + id, ex);
-		} catch (RuntimeException ex) {
-			throw new KeycloakAdminException("Could not disable Keycloak user " + id, ex);
-		}
+		keycloakCall("disable", id, () ->
+				restClient.put()
+						.uri(userUri(), properties.getRealm(), id)
+						.headers(h -> h.setBearerAuth(tokens.accessToken()))
+						.contentType(MediaType.APPLICATION_JSON)
+						.body(Map.of("enabled", false))
+						.retrieve()
+						.toBodilessEntity());
 	}
 
 	public void logoutUser(UUID id) {
-		try {
-			restClient.post()
-					.uri(properties.getAdminBaseUrl() + "/admin/realms/{realm}/users/{id}/logout",
-							properties.getRealm(), id)
-					.headers(headers -> headers.setBearerAuth(tokens.accessToken()))
-					.retrieve()
-					.toBodilessEntity();
-		} catch (RestClientResponseException ex) {
-			if (ex.getStatusCode() == HttpStatus.NOT_FOUND) {
-				return;
-			}
-			throw new KeycloakAdminException("Could not logout Keycloak user " + id, ex);
-		} catch (RuntimeException ex) {
-			throw new KeycloakAdminException("Could not logout Keycloak user " + id, ex);
-		}
+		keycloakCall("logout", id, () ->
+				restClient.post()
+						.uri(userUri() + "/logout", properties.getRealm(), id)
+						.headers(h -> h.setBearerAuth(tokens.accessToken()))
+						.retrieve()
+						.toBodilessEntity());
 	}
 
 	public void deleteUser(UUID id) {
+		keycloakCall("delete", id, () ->
+				restClient.delete()
+						.uri(userUri(), properties.getRealm(), id)
+						.headers(h -> h.setBearerAuth(tokens.accessToken()))
+						.retrieve()
+						.toBodilessEntity());
+	}
+
+	private String userUri() {
+		return properties.getAdminBaseUrl() + "/admin/realms/{realm}/users/{id}";
+	}
+
+	private static void keycloakCall(String action, UUID id, Runnable call) {
 		try {
-			restClient.delete()
-					.uri(properties.getAdminBaseUrl() + "/admin/realms/{realm}/users/{id}",
-							properties.getRealm(), id)
-					.headers(headers -> headers.setBearerAuth(tokens.accessToken()))
-					.retrieve()
-					.toBodilessEntity();
+			call.run();
 		} catch (RestClientResponseException ex) {
 			if (ex.getStatusCode() == HttpStatus.NOT_FOUND) {
 				return;
 			}
-			throw new KeycloakAdminException("Could not delete Keycloak user " + id, ex);
+			throw new KeycloakAdminException("Could not " + action + " Keycloak user " + id, ex);
 		} catch (RuntimeException ex) {
-			throw new KeycloakAdminException("Could not delete Keycloak user " + id, ex);
+			throw new KeycloakAdminException("Could not " + action + " Keycloak user " + id, ex);
 		}
 	}
 }
