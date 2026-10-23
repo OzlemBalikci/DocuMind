@@ -148,7 +148,7 @@ class UserControllerTest {
 						.claim("auth_time", Instant.now().getEpochSecond())
 						.claim("realm_access", Map.of("roles", List.of("USER"))))
 				.authorities(new SimpleGrantedAuthority("ROLE_USER"))))
-				.andExpect(status().isNoContent());
+				.andExpect(status().isAccepted());
 		mockMvc.perform(get("/api/users/me").with(userJwt(id)))
 				.andExpect(status().isConflict())
 				.andExpect(jsonPath("$.code").value("ACCOUNT_DELETION_PENDING"));

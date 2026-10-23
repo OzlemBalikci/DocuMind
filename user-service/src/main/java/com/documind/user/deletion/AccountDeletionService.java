@@ -40,7 +40,6 @@ public class AccountDeletionService {
 					OutboxEvent.Type.USER_DELETED,
 					objectMapper.writeValueAsString(new UserDeletedEvent(id))));
 		} catch (DataIntegrityViolationException ignored) {
-			// another request already recorded USER_DELETED
 		}
 	}
 

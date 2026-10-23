@@ -8,12 +8,15 @@ import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.DynamicUpdate;
 
+import java.util.Objects;
 import java.util.UUID;
 
 @Entity
 @Table(name = "user_profiles")
 @Getter
+@DynamicUpdate
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class UserProfile extends AuditedEntity {
 
@@ -43,7 +46,7 @@ public class UserProfile extends AuditedEntity {
 	}
 
 	void refresh(String email, String fullName) {
-		this.email = email;
-		this.fullName = fullName;
+		if (!Objects.equals(this.email, email)) this.email = email;
+		if (!Objects.equals(this.fullName, fullName)) this.fullName = fullName;
 	}
 }

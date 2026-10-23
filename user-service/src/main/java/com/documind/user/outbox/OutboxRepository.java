@@ -24,8 +24,8 @@ public interface OutboxRepository extends JpaRepository<OutboxEvent, UUID> {
 	@QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "-2"))
 	@Query("""
 			select e from OutboxEvent e
-			 where e.status in (com.documind.user.outbox.OutboxEvent.Status.PENDING,
-			                    com.documind.user.outbox.OutboxEvent.Status.FAILED)
+			 where e.status in (com.documind.user.outbox.OutboxStatus.PENDING,
+			                    com.documind.user.outbox.OutboxStatus.FAILED)
 			   and e.availableAt <= :now
 			 order by e.createdAt
 			""")
@@ -33,7 +33,7 @@ public interface OutboxRepository extends JpaRepository<OutboxEvent, UUID> {
 
 	@Query("""
 			select e from OutboxEvent e
-			 where e.status = com.documind.user.outbox.OutboxEvent.Status.PROCESSING
+			 where e.status = com.documind.user.outbox.OutboxStatus.PROCESSING
 			   and e.availableAt <= :stuckBefore
 			""")
 	List<OutboxEvent> findStuckProcessing(@Param("stuckBefore") Instant stuckBefore);

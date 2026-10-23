@@ -25,7 +25,7 @@ public class QuotaService {
 
 	@Transactional
 	public QuotaResponse consume(UUID id, int amount, UUID operationId) {
-		if (operations.insertIfAbsent(operationId, id, amount, QuotaOperation.Type.CONSUME.name()) == 0) {
+		if (operations.insertIfAbsent(operationId, id, amount, QuotaOperationType.CONSUME.name()) == 0) {
 			return current(id);
 		}
 		if (profiles.consumeQuota(id, amount, Instant.now()) == 0) {
@@ -39,7 +39,7 @@ public class QuotaService {
 
 	@Transactional
 	public QuotaResponse release(UUID id, int amount, UUID operationId) {
-		if (operations.insertIfAbsent(operationId, id, amount, QuotaOperation.Type.RELEASE.name()) == 0) {
+		if (operations.insertIfAbsent(operationId, id, amount, QuotaOperationType.RELEASE.name()) == 0) {
 			return current(id);
 		}
 		int updated = profiles.releaseQuota(id, amount, Instant.now());

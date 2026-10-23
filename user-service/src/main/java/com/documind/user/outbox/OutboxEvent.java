@@ -26,14 +26,6 @@ public class OutboxEvent extends CreatedAtEntity {
 		USER_DELETED
 	}
 
-	public enum Status {
-		PENDING,
-		PROCESSING,
-		PROCESSED,
-		FAILED,
-		DEAD
-	}
-
 	@Id
 	private UUID id;
 
@@ -53,7 +45,7 @@ public class OutboxEvent extends CreatedAtEntity {
 
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 20)
-	private Status status;
+	private OutboxStatus status;
 
 	@Column(nullable = false)
 	private int attempts;
@@ -74,7 +66,7 @@ public class OutboxEvent extends CreatedAtEntity {
 		event.aggregateId = aggregateId;
 		event.eventType = eventType;
 		event.payload = payload;
-		event.status = Status.PENDING;
+		event.status = OutboxStatus.PENDING;
 		event.attempts = 0;
 		event.availableAt = Instant.now();
 		event.createdAt = Instant.now();
@@ -82,12 +74,12 @@ public class OutboxEvent extends CreatedAtEntity {
 	}
 
 	public void markProcessing() {
-		this.status = Status.PROCESSING;
+		this.status = OutboxStatus.PROCESSING;
 		this.availableAt = Instant.now();
 	}
 
 	public void markProcessed() {
-		this.status = Status.PROCESSED;
+		this.status = OutboxStatus.PROCESSED;
 		this.processedAt = Instant.now();
 		this.lastError = null;
 	}
@@ -96,15 +88,15 @@ public class OutboxEvent extends CreatedAtEntity {
 		this.attempts += 1;
 		this.lastError = error;
 		if (this.attempts >= maxAttempts) {
-			this.status = Status.DEAD;
+			this.status = OutboxStatus.DEAD;
 			return;
 		}
-		this.status = Status.FAILED;
+		this.status = OutboxStatus.FAILED;
 		this.availableAt = retryAt;
 	}
 
 	public void recover() {
-		this.status = Status.PENDING;
+		this.status = OutboxStatus.PENDING;
 		this.availableAt = Instant.now();
 	}
 }

@@ -2,7 +2,6 @@ package com.documind.common.persistence;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.MappedSuperclass;
-import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import lombok.Getter;
 
@@ -15,10 +14,11 @@ public abstract class AuditedEntity extends CreatedAtEntity {
 	@Column(name = "updated_at", nullable = false)
 	protected Instant updatedAt;
 
-	@PrePersist
-	protected void onAuditCreate() {
+	@Override
+	protected void onCreate() {
+		super.onCreate();
 		if (updatedAt == null) {
-			updatedAt = createdAt != null ? createdAt : Instant.now();
+			updatedAt = createdAt;
 		}
 	}
 

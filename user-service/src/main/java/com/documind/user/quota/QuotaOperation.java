@@ -19,11 +19,6 @@ import java.util.UUID;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class QuotaOperation extends CreatedAtEntity {
 
-	public enum Type {
-		CONSUME,
-		RELEASE
-	}
-
 	@Id
 	@Column(name = "operation_id")
 	private UUID operationId;
@@ -36,5 +31,5 @@ public class QuotaOperation extends CreatedAtEntity {
 
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 20)
-	private Type type;
+	private QuotaOperationType type;
 }
