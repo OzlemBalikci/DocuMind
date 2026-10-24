@@ -1,6 +1,6 @@
-package com.documind.user.quota;
+package com.documind.user.dto.response;
 
-import com.documind.user.profile.UserProfile;
+import com.documind.user.model.UserProfile;
 
 import java.util.UUID;
 

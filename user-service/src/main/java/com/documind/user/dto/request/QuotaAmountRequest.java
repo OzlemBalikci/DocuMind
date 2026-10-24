@@ -1,4 +1,4 @@
-package com.documind.user.quota;
+package com.documind.user.dto.request;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;

@@ -2,6 +2,9 @@ package com.documind.user.outbox;
 
 import com.documind.user.JwtDecoderTestConfig;
 import com.documind.user.PostgresSupport;
+import com.documind.user.model.OutboxEvent;
+import com.documind.user.model.OutboxStatus;
+import com.documind.user.repository.OutboxRepository;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;

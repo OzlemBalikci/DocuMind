@@ -4,7 +4,7 @@ import com.documind.user.common.DownstreamProperties;
 import com.documind.user.common.DownstreamPurgeException;
 import com.documind.user.keycloak.KeycloakAdminClient;
 import com.documind.user.keycloak.ServiceTokenProvider;
-import com.documind.user.profile.UserProfileRepository;
+import com.documind.user.repository.UserProfileRepository;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;

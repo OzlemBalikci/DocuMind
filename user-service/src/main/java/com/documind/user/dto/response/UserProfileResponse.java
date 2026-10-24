@@ -1,4 +1,6 @@
-package com.documind.user.profile;
+package com.documind.user.dto.response;
+
+import com.documind.user.model.UserProfile;
 
 import java.util.UUID;
 
