@@ -7,7 +7,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication(scanBasePackages = {
 		"com.documind.user",
-		"com.documind.common"
+		"com.documind.common",
+		"com.documind.backend.common"
 })
 @ConfigurationPropertiesScan
 @EnableScheduling
