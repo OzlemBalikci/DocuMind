@@ -55,15 +55,8 @@ jobs:
           java-version: "21"
           cache: maven
 
-      - name: Set up Maven
-        uses: s4u/setup-maven-action@v1.20.0
-        with:
-          maven-version: 3.9.16
-          java-version: "21"
-          java-distribution: "temurin"
-
       - name: Run tests
-        run: mvn -B verify
+        run: ./mvnw -B verify
 
       - name: Upload test reports
         if: always()
