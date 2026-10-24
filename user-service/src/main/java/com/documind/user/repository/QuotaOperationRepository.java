@@ -1,5 +1,6 @@
-package com.documind.user.quota;
+package com.documind.user.repository;
 
+import com.documind.user.model.QuotaOperation;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;

@@ -1,6 +1,9 @@
-package com.documind.user.profile;
+package com.documind.user.controller;
 
-import com.documind.user.deletion.AccountDeletionService;
+import com.documind.user.dto.response.AdminProfileResponse;
+import com.documind.user.dto.response.UserProfileResponse;
+import com.documind.user.service.AccountDeletionService;
+import com.documind.user.service.ProfileService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -13,7 +16,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-
 
 @RestController
 @RequestMapping("/api/users")

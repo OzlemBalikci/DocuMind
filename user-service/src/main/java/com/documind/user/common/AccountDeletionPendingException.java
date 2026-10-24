@@ -1,7 +1,7 @@
 package com.documind.user.common;
 
-import com.documind.backend.common.exception.ApiException;
-import com.documind.backend.common.exception.ErrorCode;
+import com.documind.platform.exception.ApiException;
+import com.documind.platform.exception.ErrorCode;
 
 public class AccountDeletionPendingException extends ApiException {
 

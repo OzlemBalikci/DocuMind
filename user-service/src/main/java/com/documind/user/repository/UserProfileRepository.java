@@ -1,5 +1,6 @@
-package com.documind.user.profile;
+package com.documind.user.repository;
 
+import com.documind.user.model.UserProfile;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
