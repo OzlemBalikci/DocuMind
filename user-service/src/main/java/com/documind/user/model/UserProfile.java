@@ -1,6 +1,6 @@
-package com.documind.user.profile;
+package com.documind.user.model;
 
-import com.documind.common.persistence.AuditedEntity;
+import com.documind.platform.persistence.AuditedEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -35,7 +35,7 @@ public class UserProfile extends AuditedEntity {
 	@Column(name = "quota_used", nullable = false)
 	private int quotaUsed = 0;
 
-	void refresh(String email, String fullName) {
+	public void refresh(String email, String fullName) {
 		if (!Objects.equals(this.email, email)) this.email = email;
 		if (!Objects.equals(this.fullName, fullName)) this.fullName = fullName;
 	}

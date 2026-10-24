@@ -1,5 +1,8 @@
 package com.documind.user.outbox;
 
+import com.documind.user.model.OutboxEvent;
+import com.documind.user.model.OutboxStatus;
+import com.documind.user.repository.OutboxRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
