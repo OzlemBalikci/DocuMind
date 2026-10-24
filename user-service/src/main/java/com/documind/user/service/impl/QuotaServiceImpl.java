@@ -1,7 +1,7 @@
 package com.documind.user.service.impl;
 
-import com.documind.platform.exception.NotFoundException;
-import com.documind.platform.exception.QuotaExceededException;
+import com.documind.backend.common.exception.NotFoundException;
+import com.documind.backend.common.exception.QuotaExceededException;
 import com.documind.user.dto.response.QuotaResponse;
 import com.documind.user.model.QuotaOperationType;
 import com.documind.user.model.UserProfile;

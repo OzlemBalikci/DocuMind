@@ -1,6 +1,6 @@
 package com.documind.user.model;
 
-import com.documind.platform.persistence.AuditedEntity;
+import com.documind.common.persistence.AuditedEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
