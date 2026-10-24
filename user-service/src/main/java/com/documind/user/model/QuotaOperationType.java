@@ -1,4 +1,4 @@
-package com.documind.user.quota;
+package com.documind.user.model;
 
 public enum QuotaOperationType {
     CONSUME,

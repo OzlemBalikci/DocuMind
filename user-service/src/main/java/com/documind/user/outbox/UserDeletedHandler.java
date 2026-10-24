@@ -1,6 +1,7 @@
 package com.documind.user.outbox;
 
 import com.documind.user.deletion.DeletionSteps;
+import com.documind.user.model.OutboxEvent;
 import org.springframework.stereotype.Component;
 
 @Component

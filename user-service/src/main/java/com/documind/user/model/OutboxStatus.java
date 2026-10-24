@@ -1,4 +1,4 @@
-package com.documind.user.outbox;
+package com.documind.user.model;
 
 public enum OutboxStatus {
     PENDING,
