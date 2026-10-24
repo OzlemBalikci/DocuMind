@@ -1,5 +1,8 @@
-package com.documind.user.quota;
+package com.documind.user.controller;
 
+import com.documind.user.dto.request.QuotaAmountRequest;
+import com.documind.user.dto.response.QuotaResponse;
+import com.documind.user.service.QuotaService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;

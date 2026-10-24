@@ -1,5 +1,6 @@
-package com.documind.user.outbox;
+package com.documind.user.repository;
 
+import com.documind.user.model.OutboxEvent;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
 import org.springframework.data.domain.Pageable;
@@ -24,8 +25,8 @@ public interface OutboxRepository extends JpaRepository<OutboxEvent, UUID> {
 	@QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "-2"))
 	@Query("""
 			select e from OutboxEvent e
-			 where e.status in (com.documind.user.outbox.OutboxStatus.PENDING,
-			                    com.documind.user.outbox.OutboxStatus.FAILED)
+			 where e.status in (com.documind.user.model.OutboxStatus.PENDING,
+			                    com.documind.user.model.OutboxStatus.FAILED)
 			   and e.availableAt <= :now
 			 order by e.createdAt
 			""")
@@ -33,7 +34,7 @@ public interface OutboxRepository extends JpaRepository<OutboxEvent, UUID> {
 
 	@Query("""
 			select e from OutboxEvent e
-			 where e.status = com.documind.user.outbox.OutboxStatus.PROCESSING
+			 where e.status = com.documind.user.model.OutboxStatus.PROCESSING
 			   and e.availableAt <= :stuckBefore
 			""")
 	List<OutboxEvent> findStuckProcessing(@Param("stuckBefore") Instant stuckBefore);

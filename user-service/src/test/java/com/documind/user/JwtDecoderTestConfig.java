@@ -1,6 +1,6 @@
 package com.documind.user;
 
-import com.documind.common.security.TestJwtSupport;
+import com.documind.platform.security.TestJwtSupport;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
