@@ -1,6 +1,6 @@
 package com.documind.user.service.impl;
 
-import com.documind.platform.security.CurrentUser;
+import com.documind.common.security.CurrentUser;
 import com.documind.user.common.AccountDeletionPendingException;
 import com.documind.user.dto.response.AdminProfileResponse;
 import com.documind.user.dto.response.UserProfileResponse;

@@ -1,7 +1,7 @@
 package com.documind.user.service.impl;
 
-import com.documind.platform.exception.ReauthenticationRequiredException;
-import com.documind.platform.messaging.UserDeletedEvent;
+import com.documind.backend.common.exception.ReauthenticationRequiredException;
+import com.documind.common.messaging.UserDeletedEvent;
 import com.documind.user.model.OutboxEvent;
 import com.documind.user.repository.OutboxRepository;
 import com.documind.user.service.AccountDeletionService;

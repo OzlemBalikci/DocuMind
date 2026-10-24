@@ -2,7 +2,7 @@ package com.documind.user.controller;
 
 
 
-import com.documind.platform.security.TestJwtSupport;
+import com.documind.common.security.TestJwtSupport;
 
 import com.documind.user.JwtDecoderTestConfig;
 

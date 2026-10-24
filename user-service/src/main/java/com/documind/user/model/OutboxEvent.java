@@ -1,6 +1,6 @@
 package com.documind.user.model;
 
-import com.documind.platform.persistence.CreatedAtEntity;
+import com.documind.common.persistence.CreatedAtEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
